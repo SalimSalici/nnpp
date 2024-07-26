@@ -307,7 +307,7 @@ void Mat::mat_plus_vec(Mat& result, const Mat& mat, const Mat& vec) {
         float vec_val = vec.data[r];
         for (int c = 0; c < mat.cols; c++) {
             int mat_idx = r * mat_cols + c;
-            result.data[mat_idx] = mat.data[mat_idx] + vec.data[r];
+            result.data[mat_idx] = mat.data[mat_idx] + vec_val;
         }
     }
 }

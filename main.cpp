@@ -5,10 +5,26 @@
 #include "Node.h"
 #include "Layers.h"
 #include "NeuralNetwork.h"
+#include "mnist_loader.h"
 
 using namespace std;
 
 int main(int argc, char const *argv[]) {
+
+    int training_samples_count = 100;
+    int test_samples_count = 100;
+    float black = 0;
+    float white = 1;
+
+    // MNIST
+    MnistSample* training_data = mnist_load_samples("data/train-images.idx3-ubyte", "data/train-labels.idx1-ubyte", 0, training_samples_count, black, white);
+    MnistSample* test_data = mnist_load_samples("data/t10k-images.idx3-ubyte", "data/t10k-labels.idx1-ubyte", 0, test_samples_count, black, white);
+
+    for (int i = 0; i < 10; i++) {
+        mnist_print_image(training_data[i].data);
+        cout << "Label: " << (int)training_data[i].label << endl;
+    }
+    return 0;
 
     NeuralNetwork nn;
 
