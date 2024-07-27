@@ -33,7 +33,6 @@ class Mat {
     float operator[](int idx) const;
     float getElement(int row, int col) const;
     static Mat matmul(const Mat& a, const Mat& b);
-    static Mat matmul(const Mat& a, bool a_transpose, const Mat& b, bool b_transpose);
     static Mat apply(const Mat& a, float (*act)(float));
     static Mat pow(const Mat& a, int power);
     static Mat pow(const Mat& a, float power);
@@ -45,7 +44,6 @@ class Mat {
     static void minus(Mat& result, const Mat& a, const Mat& b);
     static void hadamardProduct(Mat& result, const Mat& a, const Mat& b);
     static void matmul(Mat& result, const Mat& a, const Mat& b);
-    static void matmul(Mat& result, const Mat& a, bool a_transpose, const Mat& b, bool b_transpose);
     static void apply(Mat& result, const Mat& a, float (*act)(float));
     static void apply(Mat& result, const Mat& a, float (*act)(float, void*), void* args);
     static void pow(Mat& result, const Mat& a, int power);

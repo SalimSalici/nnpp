@@ -17,6 +17,10 @@ int main(int argc, char const *argv[]) {
     Mat maty(4, 3);
     Mat matk(3, 4);
 
+    
+
+    
+
     matk.transpose();
 
     float arrx[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
@@ -25,6 +29,18 @@ int main(int argc, char const *argv[]) {
 
     matx.copy_from(arrx);
     maty.copy_from(arry);
+
+    Mat asd = Mat::matmul(matx, maty);
+    asd.print();
+
+    cout << "\n\n";
+
+    matx.transpose();
+    maty.transpose();
+
+    Mat we = Mat::matmul(maty, matx);
+    we.print();
+    return 0;
 
     matx.transpose();
 

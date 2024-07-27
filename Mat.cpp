@@ -314,11 +314,11 @@ float Mat::getElement(int row, int col) const {
     return data[i];
 }
 
-void Mat::matmul(Mat& result, const Mat& a, bool a_transpose, const Mat& b, bool b_transpose) {
-    int a_rows = a_transpose ? a.cols : a.rows;
-    int a_cols = a_transpose ? a.rows : a.cols;
-    int b_rows = b_transpose ? b.cols : b.rows;
-    int b_cols = b_transpose ? b.rows : b.cols;
+void Mat::matmul(Mat& result, const Mat& a, const Mat& b) {
+    int a_rows = a.getRows();
+    int a_cols = a.getCols();
+    int b_rows = b.getRows();
+    int b_cols = b.getCols();
 
     if (a_cols != b_rows || result.rows != a_rows || result.cols != b_cols) {
         throw std::invalid_argument("Matrix dimensions mismatch for multiplication.");
@@ -328,8 +328,8 @@ void Mat::matmul(Mat& result, const Mat& a, bool a_transpose, const Mat& b, bool
         for (int j = 0; j < b_cols; ++j) {
             float sum = 0.0f;
             for (int k = 0; k < a_cols; ++k) {
-                float a_val = a_transpose ? a.getElement(k, i) : a.getElement(i, k);
-                float b_val = b_transpose ? b.getElement(j, k) : b.getElement(k, j);
+                float a_val = a.getElement(i, k);
+                float b_val = b.getElement(k, j);
                 sum += a_val * b_val;
             }
             result.put(sum, i, j);
@@ -337,23 +337,10 @@ void Mat::matmul(Mat& result, const Mat& a, bool a_transpose, const Mat& b, bool
     }
 }
 
-Mat Mat::matmul(const Mat& a, bool a_transpose, const Mat& b, bool b_transpose) {
-    int a_rows = a_transpose ? a.cols : a.rows;
-    int b_cols = b_transpose ? b.rows : b.cols;
-
-    Mat result(a_rows, b_cols);
-
-    Mat::matmul(result, a, a_transpose, b, b_transpose);
-
-    return result;
-}
-
-void Mat::matmul(Mat& result, const Mat& a, const Mat& b) {
-    Mat::matmul(result, a, false, b, false);
-}
-
 Mat Mat::matmul(const Mat& a, const Mat& b) {
-    return matmul(a, false, b, false);
+    Mat result(a.getRows(), b.getCols());
+    Mat::matmul(result, a, b);
+    return result;
 }
 
 Mat& Mat::apply(float (*act)(float)) {

@@ -297,8 +297,13 @@ class MatMulNode : public BinaryNode {
 
     void back() override {
         cout << "MATMUL BACK\n";
-        a->getGrad() += Mat::matmul(grad, false, b->getData(), true);
-        b->getGrad() += Mat::matmul(a->getData(), true, grad, false);
+        b->getData().transpose();
+        a->getGrad() += Mat::matmul(grad, b->getData());
+        b->getData().transpose();
+
+        a->getData().transpose();
+        b->getGrad() += Mat::matmul(a->getData(), grad);
+        a->getData().transpose();
     }
 };
 
