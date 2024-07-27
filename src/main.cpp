@@ -1,5 +1,8 @@
 #include <iostream>
 #include <memory>
+#include <cstdlib> // For rand() and srand()
+#include <ctime>   // For time()
+#include <chrono> // For timing
 
 #include "Mat.h"
 #include "Node.h"
@@ -9,45 +12,60 @@
 #include "Sample.h"
 #include "utils.h"
 
+#include <iostream>
+#include <memory>
+#include <cstdlib> // For rand() and srand()
+#include <ctime>   // For time()
+
 using namespace std;
 
 int main(int argc, char const *argv[]) {
 
-    Mat matx(3, 4);
-    Mat maty(4, 3);
-    Mat matk(3, 4);
+    std::srand(std::time(0));
 
-    matk.transpose();
+    InputLayer input(4, 3);
 
-    float arrx[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    float first_sample[4] = {11, 12, 13, 14};
+    float first_label[3] = {1, 0, 0};
 
-    float arry[] = {1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1};
+    float second_sample[4] = {21, 22, 23, 24};
+    float second_label[3] = {0, 1, 0};
 
-    matx.copy_from(arrx);
-    maty.copy_from(arry);
+    float third_sample[4] = {31, 32, 33, 34};
+    float third_label[3] = {0, 0, 1};
 
-    Mat asd = Mat::matmul(matx, maty);
-    asd.print();
+    Sample samples[3] = {
+        Sample(first_sample, 4, first_label, 3),
+        Sample(second_sample, 4, second_label, 3),
+        Sample(third_sample, 4, third_label, 3)
+    };
 
-    cout << "\n\n";
+    input.load_train_samples(samples, 3);
 
-    matx.transpose();
-    maty.transpose();
+    input.get_output()->getData().print();
 
-    Mat we = Mat::matmul(maty, matx);
-    we.print();
-    return 0;
+    NeuralNetwork nn(4);
 
-    matx.transpose();
+    nn.add_layer(make_shared<Linear>(4, 100));
+    nn.add_layer(make_shared<Linear>(100, 10));
+    nn.add_layer(make_shared<ReLU>());
 
-    Mat::plus(matk, matx, maty);
+    nn.initialize_layers();
+    nn.setup_mini_batch_size(3);
 
-    matx.print();
-    cout << "\n";
-    maty.print();
-    cout << "\n";
-    matk.print();
-    cout << "\n";
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < 1; i++) {
+        nn.feed_forward(samples, 3);
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double, std::milli> duration = end - start;
+
+    nn.get_output_data().print();
+    nn.get_loss()->print();
+    std::cout << "Took " << duration.count() << " ms" << std::endl;
 
     return 0;
 
@@ -80,184 +98,5 @@ int main(int argc, char const *argv[]) {
     }
 
     return 0;
-
-    NeuralNetwork nn;
-
-    nn.add_layer(make_shared<InputLayer>(10, 15));
-    // (10 x 15)
-
-    nn.add_layer(make_shared<Linear>(10, 8));
-    // (8 x 10)
-
-    nn.add_layer(make_shared<Linear>(8, 3));
-    // (3 x 8)
-
-    nn.add_layer(make_shared<Sigmoid>());
-
-    // (8 x 10) * (10 x 15) = (8 x 15)
-    // (3 x 8) * (8 x 15) = (3 x 15)
-
-    nn.add_layer(make_shared<Summation>());
-
-    nn.print();
-
-    cout << "\nlol 1\n";
-
-    nn.initialize();
-
-    cout << "\nlol 2\n";
-
-    nn.print();
-
-    nn.feed_forward();
-    nn.backprop();
-
-    cout << "\nlol 3\n";
-
-    nn.print();
-
-    cout << "\nlol 4\n";
-
-    nn.get_output_data().print();
-
-    return 0;
-
-    Linear linear(8, 5);
-    cout << "\n\n\n";
-    linear.print();
-
-    cout << "\n\n\n";
-    linear.initialize_xavier();
-    linear.print();
-
-    return 0;
-
-    Mat mat1(3, 3);
-    Mat mat2(3, 3);
-    Mat mat_vec(3, 1);
-
-    float arr[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-
-    float arr2[] = {1, 1, 1, 1, 1, 1, 2, 2, 2};
-
-    float arr_vec[] = {1, 1, 1};
-
-    mat1.copy_from(arr);
-    mat1.print();
-
-    mat2.copy_from(arr2);
-    mat2.print();
-
-    mat_vec.copy_from(arr_vec);
-    mat_vec.print();
-
-    Mat mat3 = mat1 + mat2;
-    mat3.print();
-
-    Mat mat4(mat1 + mat2);
-    mat4.print();
-
-    Mat::matmul(mat4, mat1, mat2);
-    mat4.print();
-
-    mat4 = mat1;
-    mat4.print();
-
-    mat4 = mat1 + mat2;
-    mat4.print();
-
-    std::cout << "\nresults\n";
-
-    Mat mat5 = Mat::matmul(mat1, mat2);
-    mat5.print();
-
-    mat5.zero();
-    mat5.print();
-
-    cout << "\n----------------------------\n\n";
-
-    auto a = make_shared<Node>(mat1);
-    auto b = make_shared<Node>(mat2);
-
-    auto c = Node::matmul(a, b);
-    c->compute();
-
-    a->getData().print();
-    b->getData().print();
-    c->getData().print();
-
-    float sevens[9] = {7, 7, 7, 19, 19, 19, 7, 7, 7};
-    Mat mat7(3, 3);
-    mat7.copy_from(sevens);
-
-    auto d = make_shared<Node>(mat7);
-    
-    auto e_pre = *c - d;
-
-    auto vec = make_shared<Node>(mat_vec);
-
-    auto e = Node::mat_plus_vec(e_pre, vec);
-
-    auto f = Node::sigmoid(e);
-
-    // PowNode g = Node::pow(f, 2);
-    auto g = *Node::pow(f, 2) + a;
-
-    // auto k = Node::pow(*f, 2);
-    
-    auto j = g->sum();
-
-    // j->backprop();
-    deque<NodePtr> sorted_nodes;
-    j->topo_sort(sorted_nodes);
-
-    Node::forwardPass(sorted_nodes);
-    Node::backwardPass(sorted_nodes);
-
-    Node::reset(sorted_nodes);
-    Node::backwardPass(sorted_nodes);
-
-    cout << "\nJ data\n";
-    j->getData().print();
-    cout << "\nG data\n";
-    g->getData().print();
-    cout << "\nF data\n";
-    f->getData().print();
-    cout << "\nE data\n";
-    e->getData().print();
-    cout << "\nVEC data\n";
-    vec->getData().print();
-    cout << "\nE-pre data\n";
-    e_pre->getData().print();
-    cout << "\nD data\n";
-    d->getData().print();
-    cout << "\nC data\n";
-    c->getData().print();
-    cout << "\nB data\n";
-    b->getData().print();
-    cout << "\nA data\n";
-    a->getData().print();
-
-    cout << "\nJ grad\n";
-    j->getGrad().print();
-    cout << "\nG grad\n";
-    g->getGrad().print();
-    cout << "\nF grad\n";
-    f->getGrad().print();
-    cout << "\nE grad\n";
-    e->getGrad().print();
-    cout << "\nVEC grad\n";
-    vec->getGrad().print();
-    cout << "\nE-pre grad\n";
-    e_pre->getGrad().print();
-    cout << "\nD grad\n";
-    d->getGrad().print();
-    cout << "\nC grad\n";
-    c->getGrad().print();
-    cout << "\nB grad\n";
-    b->getGrad().print();
-    cout << "\nA grad\n";
-    a->getGrad().print();
-
     return 0;
 }

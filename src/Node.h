@@ -48,25 +48,13 @@ class Node : public std::enable_shared_from_this<Node> {
     virtual void back() { cout << "NODE BACK\n"; };
 
     Mat& getData() {
-        if (!computed) {
-            compute();
-            computed = true;
-        }
         return data;
     }
+
     Mat& getGrad() { return grad; }
 
     void zero_grad() {
         grad.zero();
-    }
-
-    void uncompute() {
-        computed = false;
-    }
-
-    void reset() {
-        grad.zero();
-        computed = false;
     }
 
     void loadData(const Mat& other) {
@@ -76,7 +64,7 @@ class Node : public std::enable_shared_from_this<Node> {
     }
 
     virtual void topo_sort(deque<NodePtr>& sorted_nodes) {
-        cout << "NODE TOPO\n";
+        // cout << "NODE TOPO\n";
         if (permMarker) return;
         permMarker = true;
         sorted_nodes.push_front(shared_from_this());
@@ -94,7 +82,7 @@ class Node : public std::enable_shared_from_this<Node> {
 
     static void forwardPass(deque<NodePtr>& sorted_nodes) {
         for (auto it = sorted_nodes.rbegin(); it != sorted_nodes.rend(); ++it) {
-            (*it)->compute();  // This will trigger compute() if not already computed
+            (*it)->compute();
         }
     }
 
@@ -104,28 +92,15 @@ class Node : public std::enable_shared_from_this<Node> {
         }
     }
 
-    static void reset(deque<NodePtr>& sorted_nodes) {
-        for (const auto& node : sorted_nodes) {
-            node->reset();
-        }
-    }
-
     static void zero_grad(deque<NodePtr>& sorted_nodes) {
         for (const auto& node : sorted_nodes) {
             node->zero_grad();
         }
     }
 
-    static void uncompute(deque<NodePtr>& sorted_nodes) {
-        for (const auto& node : sorted_nodes) {
-            node->uncompute();
-        }
-    }
-
    protected:
     Mat data;
     Mat grad;
-    bool computed = false;
     bool tempMarker = false;
     bool permMarker = false;
 };
@@ -135,7 +110,7 @@ class UnaryNode : public Node {
     UnaryNode(NodePtr a, int rows, int cols) : Node(rows, cols), a(a) {}
 
     void topo_sort(deque<NodePtr>& sorted_nodes) override {
-        cout << "UNARY TOPO\n";
+        // cout << "UNARY TOPO\n";
         if (permMarker) return;
         tempMarker = true;
         a->topo_sort(sorted_nodes);
@@ -152,7 +127,7 @@ class BinaryNode : public Node {
     BinaryNode(NodePtr a, NodePtr b, int rows, int cols) : Node(rows, cols), a(a), b(b) {}
 
     void topo_sort(deque<NodePtr>& sorted_nodes) override {
-        cout << "BINARY TOPO\n";
+        // cout << "BINARY TOPO\n";
         if (permMarker) return;
         tempMarker = true;
         a->topo_sort(sorted_nodes);

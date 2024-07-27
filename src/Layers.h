@@ -3,6 +3,7 @@
 
 #include "Mat.h"
 #include "Node.h"
+#include "Sample.h"
 
 #include <memory>
 
@@ -34,6 +35,7 @@ float normal_sample_applier(float val, void* args) {
 
 class Layer {
    public:
+    virtual void initialize() {}
     virtual void construct_forward(NodePtr inputs) = 0;
     virtual NodePtr get_output() {
         return output;
@@ -49,21 +51,37 @@ class Layer {
 
 class InputLayer : public Layer {
     public:
-     InputLayer(int rows, int cols) {
-          output = make_shared<Node>(rows, cols);
-     }
-    
-     void construct_forward(NodePtr inputs) override {
-        // TODO: fix
-        // output->getData().zero();
-        output->getData().fill(1);
-     }
-    
-     void update(float lr, float batch_size) override {}
-    
-     void print() {
-          cout << "Input layer\n";
-     }
+
+    InputLayer(int size, int mini_batch_size) {
+        output = make_shared<Node>(mini_batch_size, size);
+        output->getData().transpose();
+        this->size = size;
+    }
+
+    void construct_forward(NodePtr inputs) override {}
+
+    void load_train_samples(Sample samples[], int mini_batch_size) {
+        if (mini_batch_size != output->getData().getCols()) {
+            throw std::invalid_argument("Error: Loss::load_train_samples - mini_batch_size != output->getData().getCols()");
+            return;
+        }
+
+        float* data = output->getData().getData();
+
+        for (int i = 0, j = 0; j < mini_batch_size; i += size, j++)
+            std::memcpy(data + i, samples[j].getData(), size * sizeof(float));
+    }
+
+    void update(float lr, float mini_batch_size) override {}
+
+    void print() {
+        cout << "Input layer\n";
+    }
+
+    private:
+
+    int size;
+    int mini_batch_size;
 };
 
 class Linear : public Layer {
@@ -74,7 +92,6 @@ class Linear : public Layer {
     }
 
     void construct_forward(NodePtr inputs) override {
-        initialize_xavier();
         output = Node::mat_plus_vec(Node::matmul(weights, inputs), bias);
     }
 
@@ -88,6 +105,10 @@ class Linear : public Layer {
         weights->getData().print();
         cout << "Linear layer - Bias:\n";
         bias->getData().print();
+    }
+
+    void initialize() {
+        initialize_xavier();
     }
 
     void initialize_xavier() {
