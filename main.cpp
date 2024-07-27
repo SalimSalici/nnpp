@@ -6,10 +6,38 @@
 #include "Layers.h"
 #include "NeuralNetwork.h"
 #include "mnist_loader.h"
+#include "Sample.h"
+#include "utils.h"
 
 using namespace std;
 
 int main(int argc, char const *argv[]) {
+
+    Mat matx(3, 4);
+    Mat maty(4, 3);
+    Mat matk(3, 4);
+
+    matk.transpose();
+
+    float arrx[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    float arry[] = {1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1};
+
+    matx.copy_from(arrx);
+    maty.copy_from(arry);
+
+    matx.transpose();
+
+    Mat::plus(matk, matx, maty);
+
+    matx.print();
+    cout << "\n";
+    maty.print();
+    cout << "\n";
+    matk.print();
+    cout << "\n";
+
+    return 0;
 
     int training_samples_count = 100;
     int test_samples_count = 100;
@@ -20,10 +48,25 @@ int main(int argc, char const *argv[]) {
     MnistSample* training_data = mnist_load_samples("data/train-images.idx3-ubyte", "data/train-labels.idx1-ubyte", 0, training_samples_count, black, white);
     MnistSample* test_data = mnist_load_samples("data/t10k-images.idx3-ubyte", "data/t10k-labels.idx1-ubyte", 0, test_samples_count, black, white);
 
-    for (int i = 0; i < 10; i++) {
-        mnist_print_image(training_data[i].data);
-        cout << "Label: " << (int)training_data[i].label << endl;
+    shared_ptr<Sample> training_samples[training_samples_count];
+    shared_ptr<Sample> test_samples[test_samples_count];
+
+    for (int i = 0; i < training_samples_count; i++) {
+        training_samples[i] = shared_ptr<Sample>(Sample::from_mnist_sample(training_data[i]));
     }
+
+    for (int i = 0; i < test_samples_count; i++) {
+        test_samples[i] = shared_ptr<Sample>(Sample::from_mnist_sample(test_data[i]));
+    }
+
+    free(training_data);
+    free(test_data);
+
+    for (int i = 0; i < 10; i++) {
+        mnist_print_image(training_samples[i]->getData());
+        cout << "Label: " << training_samples[i]->index_from_label() << endl;
+    }
+
     return 0;
 
     NeuralNetwork nn;

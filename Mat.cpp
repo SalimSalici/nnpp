@@ -4,14 +4,16 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <functional>
 
-Mat::Mat(int rows, int cols) : rows(rows), cols(cols), size(rows * cols) {
+Mat::Mat(int rows, int cols) : rows(rows), cols(cols), size(rows * cols), is_transposed(false), right(1), down(cols) {
     data = new float[size];
 }
 
 // Copy constructor
 Mat::Mat(const Mat& other)
-    : rows(other.rows), cols(other.cols), size(other.size) {
+    : rows(other.rows), cols(other.cols), size(other.size),
+        is_transposed(other.is_transposed), right(other.right), down(other.down) {
     std::cout << "Copy constructor of Mat called";
     data = new float[size];
     std::memcpy(data, other.data, size * sizeof(float));
@@ -19,7 +21,8 @@ Mat::Mat(const Mat& other)
 
 // Move constructor
 Mat::Mat(Mat&& other) noexcept
-    : rows(other.rows), cols(other.cols), size(other.size) {
+    : rows(other.rows), cols(other.cols), size(other.size),
+        is_transposed(other.is_transposed), right(other.right), down(other.down) {
     std::cout << "Move constructor of Mat called";
     data = other.data;
     other.data = nullptr;
@@ -36,6 +39,9 @@ Mat& Mat::operator=(const Mat& other) {
         cols = other.cols;
         size = other.size;
         data = newData;
+        is_transposed = other.is_transposed;
+        right = other.right;
+        down = other.down;
     }
     return *this;
 }
@@ -50,6 +56,9 @@ Mat& Mat::operator=(Mat&& other) {
         rows = other.rows;
         cols = other.cols;
         size = other.size;
+        is_transposed = other.is_transposed;
+        right = other.right;
+        down = other.down;
     }
     return *this;
 }
@@ -57,7 +66,7 @@ Mat& Mat::operator=(Mat&& other) {
 Mat::~Mat() { delete[] data; }
 
 void Mat::print() const {
-    std::cout << "Rows: " << rows << ", Cols: " << cols << "\n";
+    std::cout << "Rows: " << rows << ", Cols: " << cols << ", Transposed: " << is_transposed << "\n";
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < cols; c++) std::cout << data[r * cols + c] << " ";
         std::cout << "\n";
@@ -65,10 +74,12 @@ void Mat::print() const {
 }
 
 int Mat::getRows() const {
+    if (is_transposed) return cols;
     return rows;
 }
 
 int Mat::getCols() const {
+    if (is_transposed) return rows;
     return cols;
 }
 
@@ -76,21 +87,51 @@ int Mat::getSize() const {
     return size;
 }
 
-void Mat::copy_from(const float* other_data) {
-    std::memcpy(data, other_data, size * sizeof(float));
+bool Mat::isTransposed() const {
+    return is_transposed;
 }
 
-void Mat::put(float value, int row, int col) {
+int Mat::getRight() const {
+    return right;
+}
+
+int Mat::getDown() const {
+    return down;
+}
+
+Mat& Mat::copy_from(const float* other_data) {
+    std::memcpy(data, other_data, size * sizeof(float));
+    return *this;
+}
+
+Mat& Mat::put(float value, int row, int col) {
+    if (is_transposed) {
+        int temp = row;
+        row = col;
+        col = temp;
+    }
     int i = row * cols + col;
     if (i >= size) throw std::invalid_argument("Index out of bounds.");
     data[i] = value;
+    return *this;
 }
 
-void Mat::zero() { memset(data, 0, size * sizeof(float)); }
+Mat& Mat::zero() {
+    memset(data, 0, size * sizeof(float));
+    return *this;
+}
 
-void Mat::fill(float value) { 
+Mat& Mat::fill(float value) { 
     for (int i = 0; i < size; i++)
         data[i] = value;
+    return *this;
+}
+
+Mat& Mat::transpose() {
+    is_transposed = !is_transposed;
+    right = is_transposed ? cols : 1;
+    down = is_transposed ? 1 : cols;
+    return *this;
 }
 
 float* Mat::getData() const { return data; }
@@ -102,11 +143,90 @@ float Mat::elementsSum() const {
 }
 
 void Mat::plus(Mat& result, const Mat& a, const Mat& b) {
+    if (result.isTransposed() || a.isTransposed() || b.isTransposed()) {
+        Mat::element_op_tr_supp(result, a, b, std::plus<float>());
+        return;
+    }
+
     if (
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
     ) throw std::invalid_argument("Matrix mismatch.");
     for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] + b.data[i];
+}
+
+void Mat::element_op_tr_supp(Mat& result, const Mat& a, const Mat& b, std::function<float(float, float)> op) {
+    int r_rows = result.getRows();
+    int r_cols = result.getCols();
+    int a_rows = a.getRows();
+    int a_cols = a.getCols();
+    int b_rows = b.getRows();
+    int b_cols = b.getCols();
+
+    int r_right = result.getRight();
+    int r_down = result.getDown();
+
+    int a_right = a.getRight();
+    int a_down = a.getDown();
+
+    int b_right = b.getRight();
+    int b_down = b.getDown();
+
+    if (r_rows != a_rows || r_cols != a_cols || r_rows != b_rows || r_cols != b_cols)
+        throw std::invalid_argument("Matrix mismatch.");
+
+    float* r_data = result.getData();
+    float* a_data = a.getData();
+    float* b_data = b.getData();
+
+    for (int r = 0; r < r_rows; r++) {
+        float *r_curr = r_data + r * r_down;
+        float *a_curr = a_data + r * a_down;
+        float *b_curr = b_data + r * b_down;
+        for (int c = 0; c < r_cols; c++) {
+            *r_curr = op(*a_curr, *b_curr);
+            r_curr += r_right;
+            a_curr += a_right;
+            b_curr += b_right;
+        }
+    }
+}
+
+void Mat::plus_tr_supp(Mat& result, const Mat& a, const Mat& b) {
+    int r_rows = result.getRows();
+    int r_cols = result.getCols();
+    int a_rows = a.getRows();
+    int a_cols = a.getCols();
+    int b_rows = b.getRows();
+    int b_cols = b.getCols();
+
+    int r_right = result.getRight();
+    int r_down = result.getDown();
+
+    int a_right = a.getRight();
+    int a_down = a.getDown();
+
+    int b_right = b.getRight();
+    int b_down = b.getDown();
+
+    if (r_rows != a_rows || r_cols != a_cols || r_rows != b_rows || r_cols != b_cols)
+        throw std::invalid_argument("Matrix mismatch.");
+
+    float* r_data = result.getData();
+    float* a_data = a.getData();
+    float* b_data = b.getData();
+
+    for (int r = 0; r < r_rows; r++) {
+        float *r_curr = r_data + r * r_down;
+        float *a_curr = a_data + r * a_down;
+        float *b_curr = b_data + r * b_down;
+        for (int c = 0; c < r_cols; c++) {
+            *r_curr = *a_curr + *b_curr;
+            r_curr += r_right;
+            a_curr += a_right;
+            b_curr += b_right;
+        }
+    }
 }
 
 Mat Mat::operator+(const Mat& other) const {
@@ -119,6 +239,11 @@ Mat Mat::operator+(const Mat& other) const {
 }
 
 void Mat::minus(Mat& result, const Mat& a, const Mat& b) {
+    if (result.isTransposed() || a.isTransposed() || b.isTransposed()) {
+        Mat::element_op_tr_supp(result, a, b, std::minus<float>());
+        return;
+    }
+
     if (
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
@@ -136,6 +261,11 @@ Mat Mat::operator-(const Mat& other) const {
 }
 
 void Mat::hadamardProduct(Mat& result, const Mat& a, const Mat& b) {
+    if (result.isTransposed() || a.isTransposed() || b.isTransposed()) {
+        Mat::element_op_tr_supp(result, a, b, std::multiplies<float>());
+        return;
+    }
+
     if (
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
@@ -174,6 +304,11 @@ float Mat::operator[](int idx) const {
 }
 
 float Mat::getElement(int row, int col) const {
+    if (is_transposed) {
+        int temp = row;
+        row = col;
+        col = temp;
+    }
     int i = row * cols + col;
     if (i >= size) throw std::invalid_argument("Index out of bounds.");
     return data[i];

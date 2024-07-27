@@ -1,6 +1,8 @@
 #ifndef MAT_H
 #define MAT_H
 
+#include <functional>
+
 class Mat {
    public:
     Mat(int rows, int cols);
@@ -14,10 +16,11 @@ class Mat {
     Mat& operator=(Mat&& other);
     ~Mat();
     void print() const;
-    void copy_from(const float* other_data);
-    void put(float value, int row, int col);
-    void zero();
-    void fill(float value);
+    Mat& copy_from(const float* other_data);
+    Mat& put(float value, int row, int col);
+    Mat& zero();
+    Mat& fill(float value);
+    Mat& transpose();
     Mat& operator+=(const Mat& other);
     Mat& operator-=(const Mat& other);
     Mat& apply(float (*act)(float));
@@ -36,7 +39,9 @@ class Mat {
     static Mat pow(const Mat& a, float power);
     static Mat scale(const Mat& a, float factor);
 
+    static void element_op_tr_supp(Mat& result, const Mat& a, const Mat& b, std::function<float(float, float)> op);
     static void plus(Mat& result, const Mat& a, const Mat& b);
+    static void plus_tr_supp(Mat& result, const Mat& a, const Mat& b);
     static void minus(Mat& result, const Mat& a, const Mat& b);
     static void hadamardProduct(Mat& result, const Mat& a, const Mat& b);
     static void matmul(Mat& result, const Mat& a, const Mat& b);
@@ -53,10 +58,16 @@ class Mat {
     int getRows() const;
     int getCols() const;
     int getSize() const;
+    bool isTransposed() const;
+    int getRight() const;
+    int getDown() const;
 
    private:
     float* data;
     int rows, cols, size;
+    bool is_transposed;
+    int right;
+    int down;
 };
 
 #endif  // MAT_H

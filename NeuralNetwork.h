@@ -3,6 +3,8 @@
 
 #include "Node.h"
 #include "Layers.h"
+#include "Sample.h"
+#include "utils.h"
 
 #include <memory>
 #include <vector>
@@ -35,6 +37,12 @@ class NeuralNetwork {
     void update(float lr, float batch_size) {
         for (auto& layer : layers) {
             layer->update(lr, batch_size);
+        }
+    }
+
+    void sgd(shared_ptr<Sample> samples[], int samples_count, float lr, int epochs, int batch_size) {
+        for (int epoch = 0; epoch < epochs; epoch++) {
+            shuffleArray(samples, samples_count);
         }
     }
 
