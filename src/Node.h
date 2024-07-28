@@ -416,6 +416,56 @@ class RSSNode : public BinaryNode {
      Mat pow;
 };
 
+// Categorical Cross Entropy Node
+class CCENode : public BinaryNode {
+   public:
+    // "y" is the true value (one-hot encoded), "logits" is the output of the last layer w/o activation function
+    //  a                                       b
+    CCENode(NodePtr y, NodePtr logits, bool requires_grad) :
+        BinaryNode(y, logits, 1, 1, requires_grad),
+        predictions(y->getData().getRows(), y->getData().getCols()),
+        log_predictions(y->getData().getRows(), y->getData().getCols()) {}
+
+    void compute() override {
+        if (!enabled) return;
+
+        // Apply softmax to logits to get predictions
+        Mat::softmax(predictions, b->getData());
+
+        // Compute log of predictions
+        Mat::apply_log(log_predictions, predictions);
+
+        // Compute loss: -sum(y * log(y_hat))
+        Mat::hadamardProduct(log_predictions, a->getData(), log_predictions);
+        data.fill(-log_predictions.elementsSum());
+    }
+
+    void back() override {
+        // b is the predicted value, a is the true value    
+        if (!enabled && b->get_requires_grad())
+            Mat::softmax(predictions, b->getData());
+
+        // Gradient of CCE with respect to softmax output
+        // grad = predictions - y
+        if (b->get_requires_grad()) {
+            Mat::minus(b->getGrad(), predictions, a->getData());
+        }
+
+        // We don't compute gradient w.r.t. y (a) as it's usually the ground truth
+    }
+
+    void set_enabled(bool flag) override {
+        enabled = flag;
+        if (flag == false)
+            data.fill(NAN);
+    }
+
+   private:
+    Mat predictions;
+    Mat log_predictions;
+};
+
+
 // 
 class BCENode : public BinaryNode {
    public:

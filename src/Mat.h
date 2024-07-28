@@ -50,6 +50,7 @@ class Mat {
     static void pow(Mat& result, const Mat& a, int power);
     static void pow(Mat& result, const Mat& a, float power);
     static void scale(Mat& result, const Mat& a, float factor);
+    static void softmax(Mat& result, const Mat& a, bool rows = false);
     static void mat_plus_scalar(Mat& result, const Mat& mat, float scalar, float mat_scaling);
     static void mat_plus_vec(Mat& result, const Mat& mat, const Mat& vec);
     static void vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat);

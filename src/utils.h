@@ -19,7 +19,7 @@ int random_range_int(int min, int max) {
     return min + round(rf * (float)range);
 }
 
-void shuffle_pointers(void* array[], int count) {
+void shuffle_pointers(void* array[], size_t count) {
     for (size_t i = 0; i < count - 2; i++) {
         size_t j = random_range_int(i, count - 1);
         

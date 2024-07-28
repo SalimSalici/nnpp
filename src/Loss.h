@@ -6,7 +6,7 @@
 enum LossType {
     MSE, // Mean Squared Error
     BCE, // Binary Cross Entropy - Applies sigmoid to the last layer and then calculates the loss
-    // CCE, // Categorical Cross Entropy - Applies softmax to the last layer and then calculates the loss
+    CCE, // Categorical Cross Entropy - Applies softmax to the last layer and then calculates the loss
 };
 
 class Loss {
@@ -85,12 +85,24 @@ class BCELoss : public Loss {
     }
 };
 
+class CCELoss : public Loss {
+    public:
+
+    CCELoss(int size, int mini_batch_size) : Loss(size, mini_batch_size) {}
+
+    void construct_forward(NodePtr logits) override {
+        loss = make_shared<CCENode>(labels, logits, true);
+    }
+};
+
 shared_ptr<Loss> make_loss(LossType loss_type, int size, int mini_batch_size) {
     switch (loss_type) {
         case MSE:
             return make_shared<MSELoss>(size, mini_batch_size);
         case BCE:
             return make_shared<BCELoss>(size, mini_batch_size);
+        case CCE:
+            return make_shared<CCELoss>(size, mini_batch_size);
         default:
             throw std::invalid_argument("Error: make_loss - Invalid loss type");
     }

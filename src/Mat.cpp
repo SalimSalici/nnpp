@@ -451,6 +451,85 @@ void Mat::scale(Mat& result, const Mat& a, float factor) {
         result.data[i] = a.data[i] * factor;
 }
 
+void Mat::softmax(Mat& result, const Mat& a, bool rows) {
+    if (result.rows != a.rows || result.cols != a.cols)
+        throw std::invalid_argument("Matrix dimensions mismatch for softmax.");
+
+    int r = a.getRows();
+    int c = a.getCols();
+    float* a_data = a.getData();
+    float* result_data = result.getData();
+
+    if (rows) {
+        for (int i = 0; i < r; ++i) {
+            float max_val = a_data[i * c];
+            for (int j = 1; j < c; ++j) {
+                max_val = std::max(max_val, a_data[i * c + j]);
+            }
+
+            float sum = 0.0f;
+            for (int j = 0; j < c; ++j) {
+                float exp_val = std::exp(a_data[i * c + j] - max_val);
+                result_data[i * c + j] = exp_val;
+                sum += exp_val;
+            }
+
+            for (int j = 0; j < c; ++j) {
+                result_data[i * c + j] /= sum;
+            }
+        }
+    } else {
+
+        // Claude Sonnet 3.5 approach (tested to be slower than my approach)
+        // for (int j = 0; j < c; ++j) {
+        //     float max_val = a_data[j];
+        //     for (int i = 1; i < r; ++i) {
+        //         max_val = std::max(max_val, a_data[i * c + j]);
+        //     }
+
+        //     float sum = 0.0f;
+        //     for (int i = 0; i < r; ++i) {
+        //         float exp_val = std::exp(a_data[i * c + j] - max_val);
+        //         result_data[i * c + j] = exp_val;
+        //         sum += exp_val;
+        //     }
+
+        //     for (int i = 0; i < r; ++i) {
+        //         result_data[i * c + j] /= sum;
+        //     }
+        // }
+
+        // My approach (tested to be faster than Claude Sonnet 3.5 approach)
+        // Key insight: we process the matrix row after row, instead of column after column.
+        // To do this we need the two supporting arrays "max_vals" and "sums"
+
+        float max_vals[c];
+        float sums[c] = {0};
+
+        std::memcpy(max_vals, a_data, c * sizeof(float));
+
+        for (int i = 1; i < r; ++i) {
+            for (int j = 0; j < c; ++j) {
+                max_vals[j] = std::max(max_vals[j], a_data[i * c + j]);
+            }
+        }
+
+        for (int i = 0; i < r; ++i) {
+            for (int j = 0; j < c; ++j) {
+                float exp_val = std::exp(a_data[i * c + j] - max_vals[j]);
+                result_data[i * c + j] = exp_val;
+                sums[j] += exp_val;
+            }
+        }
+
+        for (int i = 0; i < r; ++i) {
+            for (int j = 0; j < c; ++j) {
+                result_data[i * c + j] /= sums[j];
+            }
+        }
+    }
+}
+
 // void Mat::mat_plus_scalar(Mat& result, const Mat& mat, float scalar, float mat_scaling) {
 
 //     std::cout << result.rows << " " << result.cols << " | " << mat.rows << " " << mat.cols << std::endl;
