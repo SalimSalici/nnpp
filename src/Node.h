@@ -19,6 +19,7 @@ class ActivationNode;
 class SigmoidNode;
 class PowNode;
 class MatPlusVecNode;
+class RSSNode;
 
 using namespace std;
 using NodePtr = std::shared_ptr<Node>;
@@ -85,6 +86,7 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr activation(NodePtr a, float (*act)(float), float (*act_derivative)(float));
     static NodePtr sigmoid(NodePtr a);
     static NodePtr pow(NodePtr a, float pow);
+    static NodePtr rss(NodePtr y, NodePtr y_hat);
     static NodePtr mat_plus_vec(NodePtr a, NodePtr b);
 
     static void forwardPass(deque<NodePtr>& sorted_nodes) {
@@ -303,6 +305,52 @@ class MatMulNode : public BinaryNode {
         // b->getGrad() += Mat::matmul(a->getData(), grad);
         a->getData().transpose();
     }
+};
+
+// Residual Sum of Squares loss. Similar to MSE, but without the division by the number of samples (so without the mean)
+class RSSNode : public BinaryNode {
+   public:
+
+    // y is the true value, y_hat is the predicted value (output of the model)
+    // a                    b
+    RSSNode(NodePtr y, NodePtr y_hat) : BinaryNode(y, y_hat, 1, 1),
+        difference(y->getData().getRows(), y->getData().getCols()),
+        pow(y->getData().getRows(), y->getData().getCols()) {}
+
+    void compute() override {
+        // b is the predicted value, a is the true value
+        if (!compute_flag) return;
+        Mat::minus(difference, b->getData(), a->getData());
+        Mat::pow(pow, difference, 2);
+        data.fill(pow.elementsSum());
+        // std::cout << data.getData()[0] << std::endl;
+    }
+
+    void back() override {
+        // This nodes assumes it's the last in the computational graph
+
+        // cout << "RSS BACK\n";
+
+        // b is the predicted value, a is the true value    
+        if (!compute_flag)
+            Mat::minus(difference, b->getData(), a->getData());
+
+        Mat::plus(b->getGrad(), b->getGrad(), difference);
+        Mat::plus(a->getGrad(), a->getGrad(), Mat::scale(difference, -1));
+
+        // std::cout << "BACCKOOO\n";
+    }
+
+    void set_compute_flag(bool flag) {
+        compute_flag = flag;
+        if (flag == false)
+            data.fill(NAN);
+    }
+
+    private:
+     Mat difference;
+     Mat pow;
+     bool compute_flag = true;
 };
 
 NodePtr Node::operator+(NodePtr other) { return std::make_shared<PlusNode>(shared_from_this(), other); }

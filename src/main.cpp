@@ -12,19 +12,14 @@
 #include "Sample.h"
 #include "utils.h"
 
-#include <iostream>
-#include <memory>
-#include <cstdlib> // For rand() and srand()
-#include <ctime>   // For time()
-
 using namespace std;
 
 int main(int argc, char const *argv[]) {
 
     std::srand(std::time(0));
 
-    int training_samples_count = 600;
-    int test_samples_count = 100;
+    int training_samples_count = 60000;
+    int test_samples_count = 10000;
     float black = 0;
     float white = 1;
 
@@ -50,21 +45,19 @@ int main(int argc, char const *argv[]) {
     //     mnist_print_image(training_samples[i].getData());
     //     cout << "Label: " << training_samples[i].index_from_label() << endl;
     // }
-
-    // return 0;
-
+    
     NeuralNetwork nn(28*28);
 
-    nn.add_layer(make_shared<Linear>(28*28, 100));
+    nn.add_layer(make_shared<Linear>(28*28, 30));
     nn.add_layer(make_shared<Sigmoid>());
-    nn.add_layer(make_shared<Linear>(100, 10));
+    nn.add_layer(make_shared<Linear>(30, 10));
     nn.add_layer(make_shared<Sigmoid>());
 
     nn.initialize_layers();
-    float lr = 0.5;
-    int epochs = 200;
+    float lr = 3;
+    int epochs = 30;
     
-    int minibatch_size = 50;
+    int minibatch_size = 10;
 
     nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
 

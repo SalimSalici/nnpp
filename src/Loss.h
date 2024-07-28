@@ -13,9 +13,10 @@ class Loss {
         this->size = size;
     }
 
-    void construct_forward(NodePtr inputs) {
+    void construct_forward(NodePtr predictions) {
         // MSE loss
-        loss = Node::pow(*inputs - labels, 2)->sum();
+        // loss = Node::pow(*predictions - labels, 2)->sum();
+        loss = make_shared<RSSNode>(predictions, labels);
     }
 
     void load_labels(Sample* samples[], int mini_batch_size) {
@@ -33,9 +34,10 @@ class Loss {
 
         for (int i = 0, j = 0; j < mini_batch_size; i += size, j++)
             std::memcpy(data + i, samples[j]->getLabel(), size * sizeof(float));
+    }
 
-        // std::cout << "Labels: ";
-        // labels->getData().print();
+    void set_compute_flag(bool flag) {
+        loss->set_compute_flag(flag);
     }
 
     NodePtr get_loss() {
@@ -54,7 +56,8 @@ class Loss {
     private:
 
     NodePtr labels;
-    NodePtr loss;
+    // NodePtr loss;
+    shared_ptr<RSSNode> loss;
 
     int size;
     int mini_batch_size;

@@ -6,6 +6,7 @@
 #include "Sample.h"
 
 #include <memory>
+#include <cmath>
 
 class Layer;
 

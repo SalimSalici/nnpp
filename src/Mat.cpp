@@ -6,6 +6,10 @@
 #include <stdexcept>
 #include <functional>
 
+extern "C" {
+#include <cblas.h>
+}
+
 Mat::Mat(int rows, int cols) : rows(rows), cols(cols), size(rows * cols), is_transposed(false), right(1), down(cols) {
     data = new float[size];
 }
@@ -314,6 +318,29 @@ float Mat::getElement(int row, int col) const {
     return data[i];
 }
 
+// void Mat::matmul(Mat& result, const Mat& a, const Mat& b) {
+//     int a_rows = a.getRows();
+//     int a_cols = a.getCols();
+//     int b_rows = b.getRows();
+//     int b_cols = b.getCols();
+
+//     if (a_cols != b_rows || result.rows != a_rows || result.cols != b_cols) {
+//         throw std::invalid_argument("Matrix dimensions mismatch for multiplication.");
+//     }
+
+//     for (int i = 0; i < a_rows; ++i) {
+//         for (int j = 0; j < b_cols; ++j) {
+//             float sum = 0.0f;
+//             for (int k = 0; k < a_cols; ++k) {
+//                 float a_val = a.getElement(i, k);
+//                 float b_val = b.getElement(k, j);
+//                 sum += a_val * b_val;
+//             }
+//             result.put(sum, i, j);
+//         }
+//     }
+// }
+
 void Mat::matmul(Mat& result, const Mat& a, const Mat& b) {
     int a_rows = a.getRows();
     int a_cols = a.getCols();
@@ -324,17 +351,14 @@ void Mat::matmul(Mat& result, const Mat& a, const Mat& b) {
         throw std::invalid_argument("Matrix dimensions mismatch for multiplication.");
     }
 
-    for (int i = 0; i < a_rows; ++i) {
-        for (int j = 0; j < b_cols; ++j) {
-            float sum = 0.0f;
-            for (int k = 0; k < a_cols; ++k) {
-                float a_val = a.getElement(i, k);
-                float b_val = b.getElement(k, j);
-                sum += a_val * b_val;
-            }
-            result.put(sum, i, j);
-        }
-    }
+    CBLAS_TRANSPOSE a_transposed = a.isTransposed() ? CblasTrans : CblasNoTrans;
+    CBLAS_TRANSPOSE b_transposed = b.isTransposed() ? CblasTrans : CblasNoTrans;
+
+    cblas_sgemm(CblasRowMajor, 
+                a_transposed, b_transposed,
+                a_rows, b_cols, a_cols,
+                1, a.getData(), a.cols, b.getData(), b.cols,
+                0, result.getData(), result.cols);
 }
 
 Mat Mat::matmul(const Mat& a, const Mat& b) {

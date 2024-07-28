@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <vector>
+#include <iomanip>
 
 typedef struct Evaluation {
     int correct;
@@ -80,12 +81,18 @@ class NeuralNetwork {
     void sgd(Sample* samples[], int samples_count, float lr, int epochs, int mini_batch_size,
                 Sample* test_samples[], int test_samples_count) {
 
+        Evaluation initial_eval = evaluate(test_samples, test_samples_count);
+
+        std::cout << "Starting SGD. Initial accuracy: " << initial_eval.accuracy * 100 << "%" << std::endl;
+        std::cout << "Initial loss: " << initial_eval.loss << std::endl;
+
         for (int epoch = 0; epoch < epochs; epoch++) {
 
             auto start = std::chrono::high_resolution_clock::now();
 
             shuffle_pointers((void**)samples, samples_count);
             setup_mini_batch_size(mini_batch_size);
+            loss->set_compute_flag(false);
             int mini_batch_tracker = 0;
             while (mini_batch_tracker + mini_batch_size <= samples_count) {
                 Node::zero_grad(sorted_nodes);
@@ -97,14 +104,27 @@ class NeuralNetwork {
             }
 
             auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> train_time = end - start;
 
-            std::chrono::duration<double, std::milli> duration = end - start;
+            start = std::chrono::high_resolution_clock::now();
 
             // Evaluation train_eval = evaluate(samples, samples_count);
             Evaluation test_eval = evaluate(test_samples, test_samples_count);
 
-            std::cout << "Epoch " << epoch << " completed. Took "<< duration.count() << "ms. Loss: " << test_eval.loss
-                << " - Accuracy: " << test_eval.accuracy << std::endl;
+            end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> test_time = end - start;
+
+            double total_time = train_time.count() + test_time.count();
+
+            std::cout << std::fixed << std::setprecision(2) << "Epoch " << epoch << " completed - Train_time: "<< train_time.count() / 1000
+                << "s - Test time: " << test_time.count() / 1000
+                << "s - Total time: " << total_time / 1000 << "s";
+
+            std::cout.unsetf(std::ios::fixed); // Remove the fixed format flag
+            std::cout.precision(6); // Reset precision to the default value (commonly 6)
+            
+            std::cout << " - Loss: " << test_eval.loss << " - Accuracy: " << test_eval.accuracy * 100 << "%" << std::endl;
+            
         }
     }
 
@@ -112,6 +132,7 @@ class NeuralNetwork {
     Evaluation evaluate(Sample* samples[], int samples_count) {
         Evaluation eval = {0, samples_count, 0, 0};
         setup_mini_batch_size(samples_count);
+        loss->set_compute_flag(true);
         load_labels(samples, samples_count);
         feedforward(samples, samples_count);
 
