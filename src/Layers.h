@@ -54,7 +54,8 @@ class InputLayer : public Layer {
     public:
 
     InputLayer(int size, int mini_batch_size) {
-        output = make_shared<Node>(mini_batch_size, size);
+        // requires_grad = false for input layer -----------v
+        output = make_shared<Node>(mini_batch_size, size, false);
         output->getData().transpose();
         output->getGrad().transpose();
         this->size = size;
@@ -89,8 +90,8 @@ class InputLayer : public Layer {
 class Linear : public Layer {
    public:
     Linear(int input_size, int output_size) {
-        weights = make_shared<Node>(output_size, input_size);
-        bias = make_shared<Node>(output_size, 1);
+        weights = make_shared<Node>(output_size, input_size, true);
+        bias = make_shared<Node>(output_size, 1, true);
     }
 
     void construct_forward(NodePtr inputs) override {

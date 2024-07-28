@@ -7,7 +7,7 @@ class Loss {
     public:
 
     Loss(int size, int mini_batch_size) {
-        labels = make_shared<Node>(mini_batch_size, size);
+        labels = make_shared<Node>(mini_batch_size, size, false);
         labels->getData().transpose();
         labels->getGrad().transpose();
         this->size = size;
@@ -16,7 +16,7 @@ class Loss {
     void construct_forward(NodePtr predictions) {
         // MSE loss
         // loss = Node::pow(*predictions - labels, 2)->sum();
-        loss = make_shared<RSSNode>(predictions, labels);
+        loss = make_shared<RSSNode>(predictions, labels, true);
     }
 
     void load_labels(Sample* samples[], int mini_batch_size) {
