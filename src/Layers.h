@@ -40,7 +40,7 @@ class Layer {
     virtual NodePtr get_output() {
         return output;
     }
-    virtual void update(float lr, float batch_size) = 0;
+    virtual void update(float lr, float mini_batch_size) = 0;
     virtual void print() {
         cout << "Generic layer";
     }
@@ -55,12 +55,13 @@ class InputLayer : public Layer {
     InputLayer(int size, int mini_batch_size) {
         output = make_shared<Node>(mini_batch_size, size);
         output->getData().transpose();
+        output->getGrad().transpose();
         this->size = size;
     }
 
     void construct_forward(NodePtr inputs) override {}
 
-    void load_train_samples(Sample samples[], int mini_batch_size) {
+    void load_train_samples(Sample* samples[], int mini_batch_size) {
         if (mini_batch_size != output->getData().getCols()) {
             throw std::invalid_argument("Error: Loss::load_train_samples - mini_batch_size != output->getData().getCols()");
             return;
@@ -69,7 +70,7 @@ class InputLayer : public Layer {
         float* data = output->getData().getData();
 
         for (int i = 0, j = 0; j < mini_batch_size; i += size, j++)
-            std::memcpy(data + i, samples[j].getData(), size * sizeof(float));
+            std::memcpy(data + i, samples[j]->getData(), size * sizeof(float));
     }
 
     void update(float lr, float mini_batch_size) override {}
@@ -95,9 +96,9 @@ class Linear : public Layer {
         output = Node::mat_plus_vec(Node::matmul(weights, inputs), bias);
     }
 
-    void update(float lr, float batch_size) override {
-        weights->getData() -= Mat::scale(weights->getGrad(), lr / batch_size);
-        bias->getData() -= Mat::scale(bias->getGrad(), lr / batch_size);
+    void update(float lr, float mini_batch_size) override {
+        weights->getData() -= Mat::scale(weights->getGrad(), lr / mini_batch_size);
+        bias->getData() -= Mat::scale(bias->getGrad(), lr / mini_batch_size);
     }
 
     void print() {
@@ -115,7 +116,7 @@ class Linear : public Layer {
         float mean = 0;
 
         // sqrt(2 / n_in)
-        float std = sqrt(2.0 / weights->getData().getCols());
+        float std = sqrt(1.0 / weights->getData().getCols());
 
         float args[2] = {mean, std};
         Mat::apply(weights->getData(), weights->getData(), normal_sample_applier, static_cast<void*>(args));
@@ -137,7 +138,7 @@ class Sigmoid : public Layer {
         output = Node::sigmoid(inputs);
     }
 
-    void update(float lr, float batch_size) override {}
+    void update(float lr, float mini_batch_size) override {}
 
     void print() {
         cout << "Sigmoid layer\n";
@@ -151,7 +152,7 @@ class ReLU : public Layer {
         output = Node::activation(inputs, activation_functions::relu, activation_functions::relu_derivative);
     }
 
-    void update(float lr, float batch_size) override {}
+    void update(float lr, float mini_batch_size) override {}
 
     void print() {
         cout << "ReLU layer\n";
@@ -165,7 +166,7 @@ class Summation : public Layer {
         output = inputs->sum();
     }
 
-    void update(float lr, float batch_size) override {}
+    void update(float lr, float mini_batch_size) override {}
 
     void print() {
         cout << "Summation layer\n";

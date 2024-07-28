@@ -50,6 +50,9 @@ class Sample {
         cout << endl;
     }
 
+    int get_data_size() const { return data_size; }
+    int get_label_size() const { return label_size; }
+
     static Sample* from_mnist_sample(const MnistSample& sample) {
         float label[10] = {0};
         label[sample.label] = 1;

@@ -45,7 +45,9 @@ class Node : public std::enable_shared_from_this<Node> {
 
     virtual void compute() {};
 
-    virtual void back() { cout << "NODE BACK\n"; };
+    virtual void back() {
+        // cout << "NODE BACK\n"; 
+    };
 
     Mat& getData() {
         return data;
@@ -68,6 +70,11 @@ class Node : public std::enable_shared_from_this<Node> {
         if (permMarker) return;
         permMarker = true;
         sorted_nodes.push_front(shared_from_this());
+    }
+
+    void reset_markers() {
+        permMarker = false;
+        tempMarker = false;
     }
 
     NodePtr operator+(NodePtr other);
@@ -95,6 +102,12 @@ class Node : public std::enable_shared_from_this<Node> {
     static void zero_grad(deque<NodePtr>& sorted_nodes) {
         for (const auto& node : sorted_nodes) {
             node->zero_grad();
+        }
+    }
+
+    static void reset_markers(deque<NodePtr>& sorted_nodes) {
+        for (const auto& node : sorted_nodes) {
+            node->reset_markers();
         }
     }
 
@@ -164,7 +177,7 @@ class SumNode : public UnaryNode {
     };
 
     void back() override {
-        cout << "SUM BACK\n";
+        // cout << "SUM BACK\n";
         a->getGrad().fill(1);
     }
 };
@@ -182,9 +195,12 @@ class ActivationNode : public UnaryNode {
     }
 
     void back() override {
-        cout << "SIGMOID BACK\n";
-        a->getGrad() +=
-            grad * Mat::apply(a->getData(), act_derivative);
+        // cout << "SIGMOID BACK\n";
+        Mat prime = Mat::apply(a->getData(), act_derivative);
+        Mat::hadamardProduct(prime, prime, grad);
+        Mat::plus(a->getGrad(), a->getGrad(), prime);
+        // a->getGrad() +=
+        //     grad * Mat::apply(a->getData(), act_derivative);
     }
 
     private:
@@ -207,9 +223,10 @@ class PowNode : public UnaryNode {
     }
 
     void back() override {
-        cout << "POW BACK\n";
-        a->getGrad() += grad * Mat::pow(Mat::scale(a->getData(), pow),
-                                       pow - 1);
+        // cout << "POW BACK\n";
+        Mat::plus(a->getGrad(), a->getGrad(), grad * Mat::pow(Mat::scale(a->getData(), pow), pow - 1));
+        // a->getGrad() += grad * Mat::pow(Mat::scale(a->getData(), pow),
+        //                                pow - 1);
     }
 
    private:
@@ -225,9 +242,11 @@ class PlusNode : public BinaryNode {
     }
 
     void back() override {
-        cout << "PLUS BACK\n";
-        a->getGrad() += grad;
-        b->getGrad() += grad;
+        // cout << "PLUS BACK\n";
+        Mat::plus(a->getGrad(), a->getGrad(), grad);
+        Mat::plus(b->getGrad(), b->getGrad(), grad);
+        // a->getGrad() += grad;
+        // b->getGrad() += grad;
     }
 };
 
@@ -240,8 +259,9 @@ class MatPlusVecNode : public BinaryNode {
     }
 
     void back() override {
-        cout << "PLUS BACK\n";
-        a->getGrad() += grad;
+        // cout << "PLUS BACK\n";
+        Mat::plus(a->getGrad(), a->getGrad(), grad);
+        // a->getGrad() += grad;
         Mat::vec_plus_mat(b->getGrad(), b->getGrad(), grad);
     }
 };
@@ -255,9 +275,10 @@ class MinusNode : public BinaryNode {
     }
 
     void back() override {
-        cout << "MINUS BACK\n";
-        a->getGrad() += grad;
-        b->getGrad() -= grad;
+        // cout << "MINUS BACK\n";
+
+        Mat::plus(a->getGrad(), a->getGrad(), grad);
+        Mat::minus(b->getGrad(), b->getGrad(), grad);
     }
 };
 
@@ -271,13 +292,15 @@ class MatMulNode : public BinaryNode {
     }
 
     void back() override {
-        cout << "MATMUL BACK\n";
+        // cout << "MATMUL BACK\n";
         b->getData().transpose();
-        a->getGrad() += Mat::matmul(grad, b->getData());
+        Mat::plus(a->getGrad(), a->getGrad(), Mat::matmul(grad, b->getData()));
+        // a->getGrad() += Mat::matmul(grad, b->getData());
         b->getData().transpose();
 
         a->getData().transpose();
-        b->getGrad() += Mat::matmul(a->getData(), grad);
+        Mat::plus(b->getGrad(), b->getGrad(), Mat::matmul(a->getData(), grad));
+        // b->getGrad() += Mat::matmul(a->getData(), grad);
         a->getData().transpose();
     }
 };
