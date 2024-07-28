@@ -45,16 +45,36 @@ int main(int argc, char const *argv[]) {
     //     mnist_print_image(training_samples[i].getData());
     //     cout << "Label: " << training_samples[i].index_from_label() << endl;
     // }
+
+
     
     NeuralNetwork nn(28*28);
 
-    nn.add_layer(make_shared<Linear>(28*28, 30));
+    // nn.add_layer(make_shared<Linear>(28*28, 200));
+    // nn.add_layer(make_shared<Sigmoid>());
+    // // nn.add_layer(make_shared<Linear>(200, 200));
+    // // nn.add_layer(make_shared<Sigmoid>());
+    // // nn.add_layer(make_shared<Linear>(200, 200));
+    // // nn.add_layer(make_shared<Sigmoid>());
+    // nn.add_layer(make_shared<Linear>(200, 10));
+    // nn.add_layer(make_shared<Sigmoid>());
+
+
+    nn.set_loss_type(LossType::BCE);
+
+    nn.add_layer(make_shared<Linear>(28*28, 200));
     nn.add_layer(make_shared<Sigmoid>());
-    nn.add_layer(make_shared<Linear>(30, 10));
+    nn.add_layer(make_shared<Linear>(200, 200));
     nn.add_layer(make_shared<Sigmoid>());
+    nn.add_layer(make_shared<Linear>(200, 200));
+    nn.add_layer(make_shared<Sigmoid>());
+    nn.add_layer(make_shared<Linear>(200, 10));
+    // nn.add_layer(make_shared<Sigmoid>());
+
+
 
     nn.initialize_layers();
-    float lr = 3;
+    float lr = 0.5;
     int epochs = 30;
     
     int minibatch_size = 10;

@@ -9,10 +9,18 @@ float sigmoid_derivative(float x) {
     return sig * (1 - sig);
 }
 
+float sigmoid_derivative_with_sig(float sig) {
+    return sig * (1 - sig);
+}
+
 float tanh(float x) { return std::tanh(x); }
 
 float tanh_derivative(float x) {
     float tanh_x = std::tanh(x);
+    return 1 - (tanh_x * tanh_x);
+}
+
+float tanh_derivative_with_tanh(float tanh_x) {
     return 1 - (tanh_x * tanh_x);
 }
 

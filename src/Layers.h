@@ -37,11 +37,19 @@ float normal_sample_applier(float val, void* args) {
 class Layer {
    public:
     virtual void initialize() {}
+
     virtual void construct_forward(NodePtr inputs) = 0;
+
     virtual NodePtr get_output() {
         return output;
     }
+
     virtual void update(float lr, float mini_batch_size) = 0;
+
+    void set_enabled(bool enabled) {
+        output->set_enabled(enabled);
+    }
+
     virtual void print() {
         cout << "Generic layer";
     }

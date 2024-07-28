@@ -35,7 +35,8 @@ class NeuralNetwork {
 
         input_layer = make_shared<InputLayer>(input_size, mini_batch_size);
         setup_computatioal_graph();
-        loss = make_shared<Loss>(layers.back()->get_output()->getData().getRows(), mini_batch_size);
+        // loss = make_shared<Loss>(layers.back()->get_output()->getData().getRows(), mini_batch_size);
+        loss = make_loss(loss_type, layers.back()->get_output()->getData().getRows(), mini_batch_size);
         loss->construct_forward(layers.back()->get_output());
         loss->get_loss()->topo_sort(sorted_nodes);
     }
@@ -92,7 +93,7 @@ class NeuralNetwork {
 
             shuffle_pointers((void**)samples, samples_count);
             setup_mini_batch_size(mini_batch_size);
-            loss->set_compute_flag(false);
+            loss->set_compute_loss_flag(false);
             int mini_batch_tracker = 0;
             while (mini_batch_tracker + mini_batch_size <= samples_count) {
                 Node::zero_grad(sorted_nodes);
@@ -109,7 +110,7 @@ class NeuralNetwork {
             start = std::chrono::high_resolution_clock::now();
 
             // Evaluation train_eval = evaluate(samples, samples_count);
-            Evaluation test_eval = evaluate(test_samples, test_samples_count);
+            Evaluation test_eval = evaluate(test_samples, test_samples_count, false);
 
             end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> test_time = end - start;
@@ -129,16 +130,27 @@ class NeuralNetwork {
     }
 
     // For classification tasks
-    Evaluation evaluate(Sample* samples[], int samples_count) {
+    Evaluation evaluate(Sample* samples[], int samples_count, bool disable_last_layer = false) {
         Evaluation eval = {0, samples_count, 0, 0};
         setup_mini_batch_size(samples_count);
-        loss->set_compute_flag(true);
+        loss->set_compute_loss_flag(true);
+
+        // For classification tasks we don't need the last layer,
+        // just taking the highest logit is enough
+        if (disable_last_layer) {
+            set_enabled_last_layer(false);
+            loss->set_compute_loss_flag(false); // Can't compute loss without last layer
+        }
+
         load_labels(samples, samples_count);
-        feedforward(samples, samples_count);
+        feedforward(samples, samples_count);        
+        auto& output = layers.back()->get_output()->getData();
+
+        if (disable_last_layer)
+            set_enabled_last_layer(true);
 
         eval.loss = loss->get_loss()->getData().getData()[0] / samples_count;
 
-        auto& output = layers.back()->get_output()->getData();
         for (int i = 0; i < samples_count; i++) {
             
             int max_index = 0;
@@ -163,6 +175,14 @@ class NeuralNetwork {
         return eval;
     }
 
+    void set_enabled_last_layer(bool enabled) {
+        layers.back()->set_enabled(enabled);
+    }
+
+    LayerPtr get_last_layer() {
+        return layers.back();
+    }
+
     Mat& get_output_data() {
         return layers.back()->get_output()->getData();
     }
@@ -185,12 +205,17 @@ class NeuralNetwork {
         return input_size;
     }
 
+    void set_loss_type(LossType loss_type) {
+        this->loss_type = loss_type;
+    }
+
    private:
     int input_size;
     shared_ptr<Loss> loss;
     shared_ptr<InputLayer> input_layer;
     vector<LayerPtr> layers; // input layer is not included
     deque<NodePtr> sorted_nodes;
+    LossType loss_type = LossType::MSE;
 };
 
 #endif

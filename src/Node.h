@@ -50,7 +50,7 @@ class Node : public std::enable_shared_from_this<Node> {
         // cout << "NODE BACK\n"; 
     };
 
-    Mat& getData() {
+    virtual Mat& getData() {
         return data;
     }
 
@@ -82,6 +82,14 @@ class Node : public std::enable_shared_from_this<Node> {
         return requires_grad;
     }
 
+    bool get_enabled() {
+        return enabled;
+    }
+
+    virtual void set_enabled(bool enabled) {
+        enabled = enabled;
+    }
+
     NodePtr operator+(NodePtr other);
     NodePtr operator-(NodePtr other);
     NodePtr sum();
@@ -95,7 +103,9 @@ class Node : public std::enable_shared_from_this<Node> {
 
     static void forwardPass(deque<NodePtr>& sorted_nodes) {
         for (auto it = sorted_nodes.rbegin(); it != sorted_nodes.rend(); ++it) {
-            (*it)->compute();
+            NodePtr node = *it;
+            if (!node->get_enabled()) return;
+            node->compute();
         }
     }
 
@@ -121,6 +131,7 @@ class Node : public std::enable_shared_from_this<Node> {
     Mat data;
     Mat grad;
     bool requires_grad;
+    bool enabled = true;
     bool tempMarker = false;
     bool permMarker = false;
 };
@@ -136,6 +147,11 @@ class UnaryNode : public Node {
         a->topo_sort(sorted_nodes);
         permMarker = true;
         sorted_nodes.push_front(shared_from_this());
+    }
+
+    Mat& getData() override {
+        if (get_enabled()) return data;
+        return a->getData();
     }
 
    protected:
@@ -192,36 +208,64 @@ class SumNode : public UnaryNode {
 
 class ActivationNode : public UnaryNode {
    public:
-    ActivationNode(NodePtr a, float (*act)(float), float (*act_derivative)(float), bool requires_grad)
-        : UnaryNode(a, a->getData().getRows(), a->getData().getCols(), requires_grad) {
-            this->act = act;
-            this->act_derivative = act_derivative;
-        }
+    ActivationNode(NodePtr a, float (*act)(float), float (*act_derivative)(float), bool requires_grad) : 
+        UnaryNode(a, a->getData().getRows(), a->getData().getCols(), requires_grad),
+        prime(a->getData().getRows(), a->getData().getCols())
+    {
+        this->act = act;
+        this->act_derivative = act_derivative;
+    }
 
     void compute() override {
         Mat::apply(data, a->getData(), act);
     }
 
-    void back() override {
-        // cout << "SIGMOID BACK\n";
+    virtual void back() override {
+        // cout << "GENERIC ACTIVATION FUNC BACK\n";
         if (a->get_requires_grad()) {
-            Mat prime = Mat::apply(a->getData(), act_derivative);
+            Mat::apply(prime, a->getData(), act_derivative);
             Mat::hadamardProduct(prime, prime, grad);
             Mat::plus(a->getGrad(), a->getGrad(), prime);
         }
     }
 
-    private:
+    protected:
     float (*act)(float);
     float (*act_derivative)(float);
+    Mat prime;
 };
 
 class SigmoidNode : public ActivationNode {
     public:
      SigmoidNode(NodePtr a, bool requires_grad) :
         ActivationNode(a, activation_functions::sigmoid, activation_functions::sigmoid_derivative, requires_grad) {}
+
+    void back() override {
+        // cout << "SIGMOID BACK\n";
+        if (a->get_requires_grad()) {
+            Mat::apply(prime, data, activation_functions::sigmoid_derivative_with_sig);
+            Mat::hadamardProduct(prime, prime, grad);
+            Mat::plus(a->getGrad(), a->getGrad(), prime);
+        }
+    }
 };
 
+class TanhNode : public ActivationNode {
+    public:
+     TanhNode(NodePtr a, bool requires_grad) :
+        ActivationNode(a, activation_functions::tanh, activation_functions::tanh_derivative, requires_grad) {}
+
+    void back() override {
+        // cout << "TANH BACK\n";
+        if (a->get_requires_grad()) {
+            Mat::apply(prime, data, activation_functions::tanh_derivative_with_tanh);
+            Mat::hadamardProduct(prime, prime, grad);
+            Mat::plus(a->getGrad(), a->getGrad(), prime);
+        }
+    }
+};
+
+// Element-wise power
 class PowNode : public UnaryNode {
    public:
    PowNode(NodePtr a, float pow, bool requires_grad)
@@ -338,11 +382,10 @@ class RSSNode : public BinaryNode {
 
     void compute() override {
         // b is the predicted value, a is the true value
-        if (!compute_flag) return;
+        if (!enabled) return;
         Mat::minus(difference, b->getData(), a->getData());
         Mat::pow(pow, difference, 2);
         data.fill(pow.elementsSum());
-        // std::cout << data.getData()[0] << std::endl;
     }
 
     void back() override {
@@ -351,7 +394,7 @@ class RSSNode : public BinaryNode {
         // cout << "RSS BACK\n";
 
         // b is the predicted value, a is the true value    
-        if (!compute_flag)
+        if (!enabled)
             Mat::minus(difference, b->getData(), a->getData());
 
         if (b->get_requires_grad()) {
@@ -360,12 +403,10 @@ class RSSNode : public BinaryNode {
         if (a->get_requires_grad()) {
             Mat::plus(a->getGrad(), a->getGrad(), Mat::scale(difference, -1));
         }
-
-        // std::cout << "BACCKOOO\n";
     }
 
-    void set_compute_flag(bool flag) {
-        compute_flag = flag;
+    void set_enabled(bool flag) override {
+        enabled = flag;
         if (flag == false)
             data.fill(NAN);
     }
@@ -373,7 +414,79 @@ class RSSNode : public BinaryNode {
     private:
      Mat difference;
      Mat pow;
-     bool compute_flag = true;
+};
+
+// 
+class BCENode : public BinaryNode {
+   public:
+
+    // "y" is the true value, "logits" is the output of the last layer w/o activation function
+    //  a                      b
+    BCENode(NodePtr y, NodePtr logits, bool requires_grad) :
+        BinaryNode(y, logits, 1, 1, requires_grad),
+        intermediate1(y->getData().getRows(), y->getData().getCols()), 
+        intermediate2(y->getData().getRows(), y->getData().getCols()), 
+        intermediate3(y->getData().getRows(), y->getData().getCols()), 
+        predictions(y->getData().getRows(), y->getData().getCols()) {}
+
+    void compute() override {
+        // b is the predicted value, a is the true value
+        if (!enabled) return;
+
+        // "predictions" is y_hat, the output of the last layer after applying the sigmoid activation function
+        Mat::apply(predictions, b->getData(), activation_functions::sigmoid);
+
+        // log(y_hat)
+        Mat::apply_log(intermediate1, predictions);
+
+        // y * log(y_hat) 
+        Mat::hadamardProduct(intermediate1, a->getData(), intermediate1);
+
+        // 1 - y_hat
+        Mat::mat_plus_scalar(intermediate2, predictions, 1, -1);
+
+        // log(1 - y_hat)
+        Mat::apply_log(intermediate2, intermediate2);
+
+        // 1 - y
+        Mat::mat_plus_scalar(intermediate3, a->getData(), 1, -1);
+
+        // (1 - y) * log(1 - y_hat)
+        Mat::hadamardProduct(intermediate2, intermediate3, intermediate2);
+
+        // y * log(y_hat)  + (1 - y) * log(1 - y_hat)
+        Mat::plus(intermediate1, intermediate1, intermediate2);
+        
+        data.fill(-intermediate1.elementsSum());
+    }
+
+    void back() override {
+        // This nodes assumes it's the last in the computational graph
+
+        // cout << "BCE BACK\n";
+
+        // b is the predicted value, a is the true value    
+        if (!enabled && b->get_requires_grad())
+            Mat::apply(predictions, b->getData(), activation_functions::sigmoid);
+
+        if (b->get_requires_grad())
+            Mat::minus(b->getGrad(), predictions, a->getData());
+
+        // We are assuming the labels don't need gradient, so we don't backpropagate to them
+        // If we did, I think it should be -ln(y_hat/(1-y_hat)) = ln((1-y_hat)/y_hat)
+    }
+
+    void set_enabled(bool flag) override {
+        enabled = flag;
+        if (flag == false)
+            data.fill(NAN);
+    }
+
+    private:
+     Mat intermediate1;
+     Mat intermediate2;
+     Mat intermediate3;
+     Mat predictions;
 };
 
 NodePtr Node::operator+(NodePtr other) { return std::make_shared<PlusNode>(shared_from_this(), other, true); }

@@ -46,9 +46,11 @@ class Mat {
     static void matmul(Mat& result, const Mat& a, const Mat& b);
     static void apply(Mat& result, const Mat& a, float (*act)(float));
     static void apply(Mat& result, const Mat& a, float (*act)(float, void*), void* args);
+    static void apply_log(Mat& result, const Mat& a);
     static void pow(Mat& result, const Mat& a, int power);
     static void pow(Mat& result, const Mat& a, float power);
     static void scale(Mat& result, const Mat& a, float factor);
+    static void mat_plus_scalar(Mat& result, const Mat& mat, float scalar, float mat_scaling);
     static void mat_plus_vec(Mat& result, const Mat& mat, const Mat& vec);
     static void vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat);
     

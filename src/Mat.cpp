@@ -393,6 +393,13 @@ void Mat::apply(Mat& result, const Mat& a, float (*act)(float, void*), void* arg
         result.data[i] = act(a.data[i], args);
 }
 
+void Mat::apply_log(Mat& result, const Mat& a) {
+    if (result.rows != a.rows || result.cols != a.cols)
+        throw std::invalid_argument("Matrix dimensions mismatch for apply_log.");
+    for (int i = 0; i < result.size; i++)
+        result.data[i] = std::log(a.data[i] + 0.00000000001);
+}
+
 Mat& Mat::raiseEach(int power) {
     for (int i = 0; i < size; i++)
         data[i] = std::pow(data[i], power);
@@ -442,6 +449,42 @@ void Mat::scale(Mat& result, const Mat& a, float factor) {
         throw std::invalid_argument("Matrix dimensions mismatch for apply.");
     for (int i = 0; i < result.size; i++)
         result.data[i] = a.data[i] * factor;
+}
+
+// void Mat::mat_plus_scalar(Mat& result, const Mat& mat, float scalar, float mat_scaling) {
+
+//     std::cout << result.rows << " " << result.cols << " | " << mat.rows << " " << mat.cols << std::endl;
+
+//     if (result.rows != mat.rows || result.cols != mat.cols)
+//         throw std::invalid_argument("Matrix dimensions mismatch for mat_plus_scalar.");
+
+//     for (int i = 0; i < result.size; i++)
+//         result.data[i] = mat_scaling * mat.data[i] + scalar;
+// }
+
+void Mat::mat_plus_scalar(Mat& result, const Mat& mat, float scalar, float mat_scaling) {
+    if (result.getRows() != mat.getRows() || result.getCols() != mat.getCols())
+        throw std::invalid_argument("Matrix dimensions mismatch for mat_plus_scalar.");
+
+    int r_rows = result.getRows();
+    int r_cols = result.getCols();
+    int r_right = result.getRight();
+    int r_down = result.getDown();
+    int m_right = mat.getRight();
+    int m_down = mat.getDown();
+
+    float* r_data = result.getData();
+    float* m_data = mat.getData();
+
+    for (int r = 0; r < r_rows; r++) {
+        float* r_curr = r_data + r * r_down;
+        float* m_curr = m_data + r * m_down;
+        for (int c = 0; c < r_cols; c++) {
+            *r_curr = mat_scaling * (*m_curr) + scalar;
+            r_curr += r_right;
+            m_curr += m_right;
+        }
+    }
 }
 
 void Mat::mat_plus_vec(Mat& result, const Mat& mat, const Mat& vec) {
