@@ -196,43 +196,6 @@ void Mat::element_op_tr_supp(Mat& result, const Mat& a, const Mat& b, std::funct
     }
 }
 
-void Mat::plus_tr_supp(Mat& result, const Mat& a, const Mat& b) {
-    int r_rows = result.getRows();
-    int r_cols = result.getCols();
-    int a_rows = a.getRows();
-    int a_cols = a.getCols();
-    int b_rows = b.getRows();
-    int b_cols = b.getCols();
-
-    int r_right = result.getRight();
-    int r_down = result.getDown();
-
-    int a_right = a.getRight();
-    int a_down = a.getDown();
-
-    int b_right = b.getRight();
-    int b_down = b.getDown();
-
-    if (r_rows != a_rows || r_cols != a_cols || r_rows != b_rows || r_cols != b_cols)
-        throw std::invalid_argument("Matrix mismatch.");
-
-    float* r_data = result.getData();
-    float* a_data = a.getData();
-    float* b_data = b.getData();
-
-    for (int r = 0; r < r_rows; r++) {
-        float *r_curr = r_data + r * r_down;
-        float *a_curr = a_data + r * a_down;
-        float *b_curr = b_data + r * b_down;
-        for (int c = 0; c < r_cols; c++) {
-            *r_curr = *a_curr + *b_curr;
-            r_curr += r_right;
-            a_curr += a_right;
-            b_curr += b_right;
-        }
-    }
-}
-
 Mat Mat::operator+(const Mat& other) const {
     if (rows != other.rows || cols != other.cols)
         throw std::invalid_argument("Matrix mismatch.");
@@ -342,14 +305,17 @@ float Mat::getElement(int row, int col) const {
 // }
 
 void Mat::matmul(Mat& result, const Mat& a, const Mat& b) {
+    Mat::matmul_mm(result, a, b, 1.0f, 0.0f);
+}
+
+void Mat::matmul_mm(Mat& result, const Mat& a, const Mat& b, float ab_s, float c_s) {
     int a_rows = a.getRows();
     int a_cols = a.getCols();
     int b_rows = b.getRows();
     int b_cols = b.getCols();
 
-    if (a_cols != b_rows || result.rows != a_rows || result.cols != b_cols) {
+    if (a_cols != b_rows || result.rows != a_rows || result.cols != b_cols)
         throw std::invalid_argument("Matrix dimensions mismatch for multiplication.");
-    }
 
     CBLAS_TRANSPOSE a_transposed = a.isTransposed() ? CblasTrans : CblasNoTrans;
     CBLAS_TRANSPOSE b_transposed = b.isTransposed() ? CblasTrans : CblasNoTrans;
@@ -357,8 +323,29 @@ void Mat::matmul(Mat& result, const Mat& a, const Mat& b) {
     cblas_sgemm(CblasRowMajor, 
                 a_transposed, b_transposed,
                 a_rows, b_cols, a_cols,
-                1, a.getData(), a.cols, b.getData(), b.cols,
-                0, result.getData(), result.cols);
+                ab_s, a.getData(), a.cols, b.getData(), b.cols,
+                c_s, result.getData(), result.cols);
+}
+
+void Mat::matmul_mv(Mat& result, const Mat& a, const Mat& b, float ab_s, float c_s) {
+    int a_rows = a.getRows();
+    int a_cols = a.getCols();
+    int b_rows = b.getRows();
+    int b_cols = b.getCols();
+
+    if (a_cols != b_rows || result.rows != a_rows || result.cols != b_cols)
+        throw std::invalid_argument("Matrix dimensions mismatch for multiplication.");
+
+    if (b_cols != 1)
+        throw std::invalid_argument("Matrix b must be a column vector for matmul_mv.");
+
+    CBLAS_TRANSPOSE a_transposed = a.isTransposed() ? CblasTrans : CblasNoTrans;
+
+    cblas_sgemv(CblasRowMajor, 
+            a_transposed,
+            a.rows, a.cols,
+            ab_s, a.data, a.cols, b.data, 1, 
+            c_s, result.data, 1);
 }
 
 Mat Mat::matmul(const Mat& a, const Mat& b) {

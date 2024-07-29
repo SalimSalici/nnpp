@@ -40,10 +40,11 @@ class Mat {
 
     static void element_op_tr_supp(Mat& result, const Mat& a, const Mat& b, std::function<float(float, float)> op);
     static void plus(Mat& result, const Mat& a, const Mat& b);
-    static void plus_tr_supp(Mat& result, const Mat& a, const Mat& b);
     static void minus(Mat& result, const Mat& a, const Mat& b);
     static void hadamardProduct(Mat& result, const Mat& a, const Mat& b);
     static void matmul(Mat& result, const Mat& a, const Mat& b);
+    static void matmul_mm(Mat& result, const Mat& a, const Mat& b, float ab_s, float c_s);
+    static void matmul_mv(Mat& result, const Mat& a, const Mat& b, float ab_s, float c_s);
     static void apply(Mat& result, const Mat& a, float (*act)(float));
     static void apply(Mat& result, const Mat& a, float (*act)(float, void*), void* args);
     static void apply_log(Mat& result, const Mat& a);

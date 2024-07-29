@@ -1,8 +1,8 @@
 # Compiler settings
 CC = gcc
 CXX = g++
-CFLAGS = -Wall -O2 -I./include
-CXXFLAGS = -Wall -O2 -std=c++11 -I./include -I. -D_USE_MATH_DEFINES
+CFLAGS = -Wall -O3 -g -I./include
+CXXFLAGS = -Wall -O3 -g -std=c++14 -I./include -I. -D_USE_MATH_DEFINES
 
 # Directories
 SRC_DIR = src

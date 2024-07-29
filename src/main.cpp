@@ -58,17 +58,21 @@ int main(int argc, char const *argv[]) {
 
     nn.set_loss_type(LossType::CCE);
 
-    nn.add_layer(make_shared<Linear>(28*28, 100));
-    nn.add_layer(make_shared<Sigmoid>());
-    nn.add_layer(make_shared<Linear>(100, 10));
+    // nn.add_layer(make_shared<Linear>(28*28, 100));
+    // nn.add_layer(make_shared<Sigmoid>());
+    // nn.add_layer(make_shared<Linear>(100, 10));
+
+    nn.add_layer(make_shared<Linear>(28*28, 1000));
+    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Linear>(1000, 10));
+
     // nn.add_layer(make_shared<Sigmoid>());
 
-
     nn.initialize_layers();
-    float lr = 0.5;
+    float lr = 0.1;
     int epochs = 30;
-    
-    int minibatch_size = 10;
+
+    int minibatch_size = 50;
 
     nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
 

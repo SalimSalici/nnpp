@@ -98,16 +98,32 @@ class InputLayer : public Layer {
 class Linear : public Layer {
    public:
     Linear(int input_size, int output_size) {
-        weights = make_shared<Node>(output_size, input_size, true);
+        weights = make_shared<Node>(output_size, input_size, false);
         bias = make_shared<Node>(output_size, 1, true);
     }
 
     void construct_forward(NodePtr inputs) override {
-        output = Node::mat_plus_vec(Node::matmul(weights, inputs), bias);
+        Wx = Node::matmul(weights, inputs);
+        output = Node::mat_plus_vec(Wx, bias); // optimize this (probably the compute method of the node)?
+        x = inputs;
+        ones = std::make_unique<Mat>(inputs->getData().getCols(), 1);
+        ones->fill(1);
     }
 
     void update(float lr, float mini_batch_size) override {
-        weights->getData() -= Mat::scale(weights->getGrad(), lr / mini_batch_size);
+
+        // WEIGHTS UPDATE (W = W - lr/mini_batch_size * dL/dz * x^T)
+        x->getData().transpose();
+        Mat::matmul_mm(weights->getData(), Wx->getGrad(), x->getData(), -lr/mini_batch_size, 1);
+        x->getData().transpose();
+
+        // BIAS UPDATE
+
+        // This bias update optimization seems to not be worth it
+        // Mat::matmul_mv(bias->getData(), output->getGrad(), *ones, -lr/mini_batch_size, 1);
+
+        // Could be optimized adding a Mat method to subtract and scale at the same time, but probably not worth it
+        // (bias is just a vector that probably isn't huge)
         bias->getData() -= Mat::scale(bias->getGrad(), lr / mini_batch_size);
     }
 
@@ -139,6 +155,13 @@ class Linear : public Layer {
    private:
     NodePtr weights;
     NodePtr bias;
+
+    std::unique_ptr<Mat> ones;
+
+    NodePtr x; // inputs to the layer
+    NodePtr Wx; // weights * inputs
+    
+    // NodePtr output; would be z = Wx + b (output is already defined in Layer)
 };
 
 class Sigmoid : public Layer {

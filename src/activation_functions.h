@@ -24,7 +24,7 @@ float tanh_derivative_with_tanh(float tanh_x) {
     return 1 - (tanh_x * tanh_x);
 }
 
-float relu(float x) { return std::fmax(0.0, x); }
+float relu(float x) { return x > 0.0f ? x : 0.0f; }
 
 float relu_derivative(float x) { return (x > 0) ? 1.0 : 0.0; }
 
