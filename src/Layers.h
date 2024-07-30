@@ -54,8 +54,13 @@ class Layer {
         cout << "Generic layer";
     }
 
+    void set_is_inference(bool is_inference) {
+        this->is_inference = is_inference;
+    }
+
    protected:
     NodePtr output;
+    bool is_inference;
 };
 
 class InputLayer : public Layer {
@@ -162,6 +167,31 @@ class Linear : public Layer {
     NodePtr Wx; // weights * inputs
     
     // NodePtr output; would be z = Wx + b (output is already defined in Layer)
+};
+
+// Inverse dropout (neuron scaling is applied during training, not during inference)
+class Dropout : public Layer {
+    public:
+    
+    Dropout(float p) : p(p) {}
+
+    void construct_forward(NodePtr inputs) override {
+
+        if (is_inference) {
+            output = inputs;
+            return;
+        }
+
+        NodePtr dropout_node = Node::dropout(inputs->getData().getRows(), inputs->getData().getCols(), p, false);
+        output = Node::hadamard_product(inputs, dropout_node);
+    }
+
+    void update(float lr, float mini_batch_size) override {}
+
+    private:
+
+    float p;
+     
 };
 
 class Sigmoid : public Layer {

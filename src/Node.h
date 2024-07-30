@@ -15,6 +15,8 @@ class SumNode;
 class PlusNode;
 class MinusNode;
 class MatMulNode;
+class DropoutNode;
+class HadamardProductNode;
 class ActivationNode;
 class SigmoidNode;
 class PowNode;
@@ -100,6 +102,8 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr pow(NodePtr a, float pow);
     static NodePtr rss(NodePtr y, NodePtr y_hat);
     static NodePtr mat_plus_vec(NodePtr a, NodePtr b);
+    static NodePtr dropout(int rows, int cols, float dropout_rate, bool requires_grad);
+    static NodePtr hadamard_product(NodePtr a, NodePtr b);
 
     static void forwardPass(deque<NodePtr>& sorted_nodes) {
         for (auto it = sorted_nodes.rbegin(); it != sorted_nodes.rend(); ++it) {
@@ -352,6 +356,10 @@ class MatMulNode : public BinaryNode {
         : BinaryNode(a, b, a->getData().getRows(), b->getData().getCols(), requires_grad) {}
 
     void compute() override {
+        // if (b->getData().getRows() == 100) {
+        //     b->getData().print();
+        // }
+
         Mat::matmul(data, a->getData(), b->getData());
     }
 
@@ -367,6 +375,56 @@ class MatMulNode : public BinaryNode {
             Mat::plus(b->getGrad(), b->getGrad(), Mat::matmul(a->getData(), grad));
             a->getData().transpose();
         }
+    }
+};
+
+// Inverse dropout (neuron scaling is applied during training, not during inference)
+class DropoutNode : public Node {
+    public:
+
+    DropoutNode(int rows, int cols, float dropout_rate, bool requires_grad) :
+        Node(rows, cols, requires_grad), p(dropout_rate) {}
+
+    void compute() override {
+        if (p == 1) {
+            throw invalid_argument("Cannot apply dropout with rate 1.");
+        }
+        data.fill_rand_rate(0, 1.0f / (1.0f - p), p);
+    }
+
+    float get_dropout_rate() {
+        return p;
+    }
+
+    void back() {
+        // cout << "DROPOUT BACK\n"; 
+    };
+        
+    private:
+
+    float p;
+};
+
+class HadamardProductNode : public BinaryNode {
+   public:
+    HadamardProductNode(NodePtr a, NodePtr b, bool requires_grad)
+        : BinaryNode(a, b, a->getData().getRows(), a->getData().getCols(), requires_grad) {}
+
+    void compute() override {
+        Mat::hadamardProduct(data, a->getData(), b->getData());
+
+        // cout << "----------------";
+        // data.print();
+        // cout << "----------------\n\n\n";
+    }
+
+    void back() override {
+        // cout << "HADAMARD BACK\n";
+        if (a->get_requires_grad())
+            Mat::hadamardProduct_keep_res(a->getGrad(), grad, b->getData(), 1);
+
+        if (b->get_requires_grad())
+            Mat::hadamardProduct_keep_res(b->getGrad(), grad, a->getData(), 1);
     }
 };
 
@@ -556,5 +614,11 @@ NodePtr Node::sigmoid(NodePtr a) { return std::make_shared<SigmoidNode>(a, true)
 NodePtr Node::pow(NodePtr a, float pow) { return std::make_shared<PowNode>(a, pow, true); }
 
 NodePtr Node::mat_plus_vec(NodePtr a, NodePtr b) { return std::make_shared<MatPlusVecNode>(a, b, true); }
+
+NodePtr Node::dropout(int rows, int cols, float dropout_rate, bool requires_grad) {
+    return std::make_shared<DropoutNode>(rows, cols, dropout_rate, requires_grad);
+}
+
+NodePtr Node::hadamard_product(NodePtr a, NodePtr b) { return std::make_shared<HadamardProductNode>(a, b, true); }
 
 #endif

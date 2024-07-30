@@ -89,6 +89,8 @@ class NeuralNetwork {
 
         for (int epoch = 0; epoch < epochs; epoch++) {
 
+            set_is_inferece(false);
+
             auto start = std::chrono::high_resolution_clock::now();
 
             shuffle_pointers((void**)samples, samples_count);
@@ -131,6 +133,9 @@ class NeuralNetwork {
 
     // For classification tasks
     Evaluation evaluate(Sample* samples[], int samples_count, bool disable_last_layer = false) {
+
+        set_is_inferece(true);
+
         Evaluation eval = {0, samples_count, 0, 0};
         setup_mini_batch_size(samples_count);
         loss->set_compute_loss_flag(true);
@@ -177,6 +182,12 @@ class NeuralNetwork {
 
     void set_enabled_last_layer(bool enabled) {
         layers.back()->set_enabled(enabled);
+    }
+
+    void set_is_inferece(bool is_inference) {
+        for (auto& layer : layers) {
+            layer->set_is_inference(is_inference);
+        }
     }
 
     LayerPtr get_last_layer() {

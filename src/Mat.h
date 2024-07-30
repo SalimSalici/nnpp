@@ -20,6 +20,7 @@ class Mat {
     Mat& put(float value, int row, int col);
     Mat& zero();
     Mat& fill(float value);
+    Mat& fill_rand_rate(float value_p, float value_not_p, float p);
     Mat& transpose();
     Mat& operator+=(const Mat& other);
     Mat& operator-=(const Mat& other);
@@ -39,9 +40,16 @@ class Mat {
     static Mat scale(const Mat& a, float factor);
 
     static void element_op_tr_supp(Mat& result, const Mat& a, const Mat& b, std::function<float(float, float)> op);
+    
+    // result = a (op) b + result * result_scaling
+    static void element_op_tr_supp_keep_res(Mat& result, const Mat& a, const Mat& b, float result_scaling, std::function<float(float, float)> op);
+
     static void plus(Mat& result, const Mat& a, const Mat& b);
     static void minus(Mat& result, const Mat& a, const Mat& b);
     static void hadamardProduct(Mat& result, const Mat& a, const Mat& b);
+
+    // result = a * b + result * result_scaling
+    static void hadamardProduct_keep_res(Mat& result, const Mat& a, const Mat& b, float result_scaling);
     static void matmul(Mat& result, const Mat& a, const Mat& b);
     static void matmul_mm(Mat& result, const Mat& a, const Mat& b, float ab_s, float c_s);
     static void matmul_mv(Mat& result, const Mat& a, const Mat& b, float ab_s, float c_s);

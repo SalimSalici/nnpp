@@ -47,26 +47,11 @@ int main(int argc, char const *argv[]) {
     // }
     NeuralNetwork nn(28*28);
 
-    // nn.add_layer(make_shared<Linear>(28*28, 200));
-    // nn.add_layer(make_shared<Sigmoid>());
-    // // nn.add_layer(make_shared<Linear>(200, 200));
-    // // nn.add_layer(make_shared<Sigmoid>());
-    // // nn.add_layer(make_shared<Linear>(200, 200));
-    // // nn.add_layer(make_shared<Sigmoid>());
-    // nn.add_layer(make_shared<Linear>(200, 10));
-    // nn.add_layer(make_shared<Sigmoid>());
-
+    nn.add_layer(make_shared<Linear>(28*28, 100));
+    nn.add_layer(make_shared<Sigmoid>());
+    nn.add_layer(make_shared<Dropout>(0.5));
+    nn.add_layer(make_shared<Linear>(100, 10));
     nn.set_loss_type(LossType::CCE);
-
-    // nn.add_layer(make_shared<Linear>(28*28, 100));
-    // nn.add_layer(make_shared<Sigmoid>());
-    // nn.add_layer(make_shared<Linear>(100, 10));
-
-    nn.add_layer(make_shared<Linear>(28*28, 1000));
-    nn.add_layer(make_shared<ReLU>());
-    nn.add_layer(make_shared<Linear>(1000, 10));
-
-    // nn.add_layer(make_shared<Sigmoid>());
 
     nn.initialize_layers();
     float lr = 0.1;

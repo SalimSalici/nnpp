@@ -131,6 +131,12 @@ Mat& Mat::fill(float value) {
     return *this;
 }
 
+Mat& Mat::fill_rand_rate(float value_p, float value_not_p, float p) { 
+    for (int i = 0; i < size; i++)
+        data[i] = ((float)rand() / RAND_MAX) < p ? value_p : value_not_p;
+    return *this;
+}
+
 Mat& Mat::transpose() {
     is_transposed = !is_transposed;
     right = is_transposed ? cols : 1;
@@ -196,6 +202,43 @@ void Mat::element_op_tr_supp(Mat& result, const Mat& a, const Mat& b, std::funct
     }
 }
 
+void Mat::element_op_tr_supp_keep_res(Mat& result, const Mat& a, const Mat& b, float result_scaling, std::function<float(float, float)> op) {
+    int r_rows = result.getRows();
+    int r_cols = result.getCols();
+    int a_rows = a.getRows();
+    int a_cols = a.getCols();
+    int b_rows = b.getRows();
+    int b_cols = b.getCols();
+
+    int r_right = result.getRight();
+    int r_down = result.getDown();
+
+    int a_right = a.getRight();
+    int a_down = a.getDown();
+
+    int b_right = b.getRight();
+    int b_down = b.getDown();
+
+    if (r_rows != a_rows || r_cols != a_cols || r_rows != b_rows || r_cols != b_cols)
+        throw std::invalid_argument("Matrix mismatch.");
+
+    float* r_data = result.getData();
+    float* a_data = a.getData();
+    float* b_data = b.getData();
+
+    for (int r = 0; r < r_rows; r++) {
+        float *r_curr = r_data + r * r_down;
+        float *a_curr = a_data + r * a_down;
+        float *b_curr = b_data + r * b_down;
+        for (int c = 0; c < r_cols; c++) {
+            *r_curr = op(*a_curr, *b_curr) + (*r_curr * result_scaling);
+            r_curr += r_right;
+            a_curr += a_right;
+            b_curr += b_right;
+        }
+    }
+}
+
 Mat Mat::operator+(const Mat& other) const {
     if (rows != other.rows || cols != other.cols)
         throw std::invalid_argument("Matrix mismatch.");
@@ -238,6 +281,19 @@ void Mat::hadamardProduct(Mat& result, const Mat& a, const Mat& b) {
         result.rows != b.rows || result.cols != b.cols
     ) throw std::invalid_argument("Matrix mismatch.");
     for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] * b.data[i];
+}
+
+void Mat::hadamardProduct_keep_res(Mat& result, const Mat& a, const Mat& b, float result_scaling) {
+    if (result.isTransposed() || a.isTransposed() || b.isTransposed()) {
+        Mat::element_op_tr_supp_keep_res(result, a, b, result_scaling, std::multiplies<float>());
+        return;
+    }
+
+    if (
+        result.rows != a.rows || result.cols != a.cols ||
+        result.rows != b.rows || result.cols != b.cols
+    ) throw std::invalid_argument("Matrix mismatch.");
+    for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] * b.data[i] + result.data[i] * result_scaling;
 }
 
 Mat Mat::operator*(const Mat& other) const {
