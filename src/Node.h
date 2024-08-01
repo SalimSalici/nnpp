@@ -22,6 +22,7 @@ class SigmoidNode;
 class PowNode;
 class MatPlusVecNode;
 class RSSNode;
+class TransposeNode;
 
 using namespace std;
 using NodePtr = std::shared_ptr<Node>;
@@ -80,7 +81,7 @@ class Node : public std::enable_shared_from_this<Node> {
         tempMarker = false;
     }
 
-    bool get_requires_grad() {
+    virtual bool get_requires_grad() {
         return requires_grad;
     }
 
@@ -104,6 +105,7 @@ class Node : public std::enable_shared_from_this<Node> {
     NodePtr operator-(NodePtr other);
     NodePtr sum();
 
+    static NodePtr plus(NodePtr a, NodePtr b);
     static NodePtr matmul(NodePtr a, NodePtr b);
     static NodePtr activation(NodePtr a, float (*act)(float), float (*act_derivative)(float));
     static NodePtr sigmoid(NodePtr a);
@@ -112,6 +114,7 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr mat_plus_vec(NodePtr a, NodePtr b);
     static NodePtr dropout(int rows, int cols, float dropout_rate, bool requires_grad);
     static NodePtr hadamard_product(NodePtr a, NodePtr b);
+    static NodePtr transpose(NodePtr a);
 
     static void forwardPass(deque<NodePtr>& sorted_nodes) {
         for (auto it = sorted_nodes.rbegin(); it != sorted_nodes.rend(); ++it) {
@@ -605,7 +608,33 @@ class BCENode : public BinaryNode {
      Mat predictions;
 };
 
+class TransposeNode : public UnaryNode {
+    public:
+
+    TransposeNode(NodePtr a, bool requires_grad) : UnaryNode(a, a->getRows(), a->getCols(), requires_grad) {
+        data.view(a->getData());
+        grad.view(a->getGrad());
+
+        data.transpose();
+        grad.transpose();
+    }
+
+    bool get_requires_grad() override {
+        return a->get_requires_grad();
+    }
+
+    int getRows() override {
+        return a->getCols();
+    }
+
+    int getCols() override {
+        return a->getRows();
+    }
+};
+
 NodePtr Node::operator+(NodePtr other) { return std::make_shared<PlusNode>(shared_from_this(), other, true); }
+
+NodePtr Node::plus(NodePtr a, NodePtr b) { return std::make_shared<PlusNode>(a, b, true); }
 
 NodePtr Node::operator-(NodePtr other) { return std::make_shared<MinusNode>(shared_from_this(), other, true); }
 
@@ -628,5 +657,7 @@ NodePtr Node::dropout(int rows, int cols, float dropout_rate, bool requires_grad
 }
 
 NodePtr Node::hadamard_product(NodePtr a, NodePtr b) { return std::make_shared<HadamardProductNode>(a, b, true); }
+
+NodePtr Node::transpose(NodePtr a) { return std::make_shared<TransposeNode>(a, true); }
 
 #endif

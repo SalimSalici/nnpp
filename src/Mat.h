@@ -5,7 +5,7 @@
 
 class Mat {
    public:
-    Mat(int rows, int cols);
+    Mat(int rows, int cols, bool alloc_data = true);
     // Copy constructor
     Mat(const Mat& other);
     // Move constructor
@@ -28,6 +28,13 @@ class Mat {
     Mat& raiseEach(int power);
     Mat& raiseEach(float power);
     float elementsSum() const;
+
+    // returns a new Mat object that is a view of the current Mat object
+    Mat view(int rows, int cols);
+    
+    // changes the current Mat object to be a view of another Mat object
+    void view(const Mat& other);
+
     Mat operator+(const Mat& other) const;
     Mat operator-(const Mat& other) const;
     Mat operator*(const Mat& other) const;
@@ -78,6 +85,7 @@ class Mat {
     bool is_transposed;
     int right;
     int down;
+    bool is_view;
 };
 
 #endif  // MAT_H

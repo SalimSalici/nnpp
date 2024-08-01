@@ -10,15 +10,16 @@ extern "C" {
 #include <cblas.h>
 }
 
-Mat::Mat(int rows, int cols) : rows(rows), cols(cols), size(rows * cols), is_transposed(false), right(1), down(cols) {
-    data = new float[size];
+Mat::Mat(int rows, int cols, bool alloc_data) : rows(rows), cols(cols), size(rows * cols), is_transposed(false), right(1), down(cols), is_view(false) {
+    if (alloc_data)
+        data = new float[size];
 }
 
 // Copy constructor
 Mat::Mat(const Mat& other)
     : rows(other.rows), cols(other.cols), size(other.size),
         is_transposed(other.is_transposed), right(other.right), down(other.down) {
-    std::cout << "Copy constructor of Mat called";
+    // std::cout << "Copy constructor of Mat called";
     data = new float[size];
     std::memcpy(data, other.data, size * sizeof(float));
 }
@@ -27,14 +28,14 @@ Mat::Mat(const Mat& other)
 Mat::Mat(Mat&& other) noexcept
     : rows(other.rows), cols(other.cols), size(other.size),
         is_transposed(other.is_transposed), right(other.right), down(other.down) {
-    std::cout << "Move constructor of Mat called";
+    // std::cout << "Move constructor of Mat called";
     data = other.data;
     other.data = nullptr;
 }
 
 // Copy assignment
 Mat& Mat::operator=(const Mat& other) {
-    std::cout << "Copy assignment of Mat called";
+    // std::cout << "Copy assignment of Mat called";
     if (this != &other) {
         float* newData = new float[other.size];
         std::memcpy(newData, other.data, size * sizeof(float));
@@ -52,7 +53,7 @@ Mat& Mat::operator=(const Mat& other) {
 
 // Move assignment
 Mat& Mat::operator=(Mat&& other) {
-    std::cout << "Move assignment of Mat called";
+    // std::cout << "Move assignment of Mat called";
     if (this != &other) {
         delete[] data;
         data = other.data;
@@ -67,7 +68,10 @@ Mat& Mat::operator=(Mat&& other) {
     return *this;
 }
 
-Mat::~Mat() { delete[] data; }
+Mat::~Mat() {
+    if (!is_view && data != nullptr)
+        delete[] data;
+}
 
 void Mat::print() const {
     std::cout << "Rows: " << rows << ", Cols: " << cols << ", Transposed: " << is_transposed << "\n";
@@ -636,5 +640,43 @@ void Mat::vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat) {
             sum += mat.data[mat_idx];
         }
         result.data[r] = vec[r] + sum;
+    }
+}
+
+Mat Mat::view(int rows, int cols) {
+
+    if (rows == -1 && cols == -1)
+        throw std::invalid_argument("Mat::view - At least one of the dimensions must be specified for view.");
+
+    if (is_transposed)
+        throw std::invalid_argument("Matrix must not be transposed for view.");
+
+    if (size != rows * cols)
+        throw std::invalid_argument("Matrix dimensions mismatch for view.");
+
+    int _rows = rows == -1 ? size / cols : rows;
+    int _cols = cols == -1 ? size / rows : cols;
+
+    Mat result(rows, cols, false);
+    result.is_view = true;
+    result.data = data;
+
+    return result;
+}
+
+void Mat::view(const Mat& other) {
+
+    if (other.is_transposed)
+        throw std::invalid_argument("Matrix must not be transposed for view.");
+
+    if (size != other.size)
+        throw std::invalid_argument("Matrix dimensions mismatch for view.");
+
+    if (is_view) {
+        data = other.data;
+    } else {
+        delete[] data;
+        data = other.data;
+        is_view = true;
     }
 }

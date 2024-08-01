@@ -67,10 +67,14 @@ class InputLayer : public Layer {
     public:
 
     InputLayer(int size, int mini_batch_size) {
-        // requires_grad = false for input layer -----------v
-        output = make_shared<Node>(mini_batch_size, size, false);
-        output->getData().transpose();
-        output->getGrad().transpose();
+        //// requires_grad = false for input layer -----------v
+        // output = make_shared<Node>(mini_batch_size, size, false);
+        // output->getData().transpose();
+        // output->getGrad().transpose();
+        // this->size = size;
+
+        inputs = make_shared<Node>(mini_batch_size, size, false);
+        output = Node::transpose(inputs);
         this->size = size;
     }
 
@@ -82,7 +86,8 @@ class InputLayer : public Layer {
             return;
         }
 
-        float* data = output->getData().getData();
+        // float* data = output->getData().getData();
+        float* data = inputs->getData().getData();
 
         for (int i = 0, j = 0; j < mini_batch_size; i += size, j++)
             std::memcpy(data + i, samples[j]->getData(), size * sizeof(float));
@@ -96,6 +101,7 @@ class InputLayer : public Layer {
 
     private:
 
+    NodePtr inputs;
     int size;
     int mini_batch_size;
 };
