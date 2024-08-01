@@ -92,6 +92,14 @@ class Node : public std::enable_shared_from_this<Node> {
         enabled = enabled;
     }
 
+    virtual int getRows() {
+        return data.getRows();
+    }
+
+    virtual int getCols() {
+        return data.getCols();
+    }
+
     NodePtr operator+(NodePtr other);
     NodePtr operator-(NodePtr other);
     NodePtr sum();
@@ -213,8 +221,8 @@ class SumNode : public UnaryNode {
 class ActivationNode : public UnaryNode {
    public:
     ActivationNode(NodePtr a, float (*act)(float), float (*act_derivative)(float), bool requires_grad) : 
-        UnaryNode(a, a->getData().getRows(), a->getData().getCols(), requires_grad),
-        prime(a->getData().getRows(), a->getData().getCols())
+        UnaryNode(a, a->getRows(), a->getCols(), requires_grad),
+        prime(a->getRows(), a->getCols())
     {
         this->act = act;
         this->act_derivative = act_derivative;
@@ -273,7 +281,7 @@ class TanhNode : public ActivationNode {
 class PowNode : public UnaryNode {
    public:
    PowNode(NodePtr a, float pow, bool requires_grad)
-        : UnaryNode(a, a->getData().getRows(), a->getData().getCols(), requires_grad), pow(pow) {}
+        : UnaryNode(a, a->getRows(), a->getCols(), requires_grad), pow(pow) {}
 
     void compute() override {
         Mat::pow(data, a->getData(), pow);
@@ -293,7 +301,7 @@ class PowNode : public UnaryNode {
 class PlusNode : public BinaryNode {
    public:
     PlusNode(NodePtr a, NodePtr b, bool requires_grad)
-        : BinaryNode(a, b, a->getData().getRows(), a->getData().getCols(), requires_grad) {}
+        : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
         Mat::plus(data, a->getData(), b->getData());
@@ -313,7 +321,7 @@ class PlusNode : public BinaryNode {
 class MatPlusVecNode : public BinaryNode {
    public:
     MatPlusVecNode(NodePtr a, NodePtr b, bool requires_grad) 
-        : BinaryNode(a, b, a->getData().getRows(), a->getData().getCols(), requires_grad) {}
+        : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
         Mat::mat_plus_vec(data, a->getData(), b->getData());
@@ -333,7 +341,7 @@ class MatPlusVecNode : public BinaryNode {
 class MinusNode : public BinaryNode {
    public:
     MinusNode(NodePtr a, NodePtr b, bool requires_grad)
-        : BinaryNode(a, b, a->getData().getRows(), a->getData().getCols(), requires_grad) {}
+        : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
         Mat::minus(data, a->getData(), b->getData());
@@ -353,10 +361,10 @@ class MinusNode : public BinaryNode {
 class MatMulNode : public BinaryNode {
    public:
     MatMulNode(NodePtr a, NodePtr b, bool requires_grad)
-        : BinaryNode(a, b, a->getData().getRows(), b->getData().getCols(), requires_grad) {}
+        : BinaryNode(a, b, a->getRows(), b->getCols(), requires_grad) {}
 
     void compute() override {
-        // if (b->getData().getRows() == 100) {
+        // if (b->getRows() == 100) {
         //     b->getData().print();
         // }
 
@@ -408,7 +416,7 @@ class DropoutNode : public Node {
 class HadamardProductNode : public BinaryNode {
    public:
     HadamardProductNode(NodePtr a, NodePtr b, bool requires_grad)
-        : BinaryNode(a, b, a->getData().getRows(), a->getData().getCols(), requires_grad) {}
+        : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
         Mat::hadamardProduct(data, a->getData(), b->getData());
@@ -435,8 +443,8 @@ class RSSNode : public BinaryNode {
     // y is the true value, y_hat is the predicted value (output of the model)
     // a                    b
     RSSNode(NodePtr y, NodePtr y_hat, bool requires_grad) : BinaryNode(y, y_hat, 1, 1, requires_grad),
-        difference(y->getData().getRows(), y->getData().getCols()),
-        pow(y->getData().getRows(), y->getData().getCols()) {}
+        difference(y->getRows(), y->getCols()),
+        pow(y->getRows(), y->getCols()) {}
 
     void compute() override {
         // b is the predicted value, a is the true value
@@ -481,8 +489,8 @@ class CCENode : public BinaryNode {
     //  a                                       b
     CCENode(NodePtr y, NodePtr logits, bool requires_grad) :
         BinaryNode(y, logits, 1, 1, requires_grad),
-        predictions(y->getData().getRows(), y->getData().getCols()),
-        log_predictions(y->getData().getRows(), y->getData().getCols()) {}
+        predictions(y->getRows(), y->getCols()),
+        log_predictions(y->getRows(), y->getCols()) {}
 
     void compute() override {
         if (!enabled) return;
@@ -532,10 +540,10 @@ class BCENode : public BinaryNode {
     //  a                      b
     BCENode(NodePtr y, NodePtr logits, bool requires_grad) :
         BinaryNode(y, logits, 1, 1, requires_grad),
-        intermediate1(y->getData().getRows(), y->getData().getCols()), 
-        intermediate2(y->getData().getRows(), y->getData().getCols()), 
-        intermediate3(y->getData().getRows(), y->getData().getCols()), 
-        predictions(y->getData().getRows(), y->getData().getCols()) {}
+        intermediate1(y->getRows(), y->getCols()), 
+        intermediate2(y->getRows(), y->getCols()), 
+        intermediate3(y->getRows(), y->getCols()), 
+        predictions(y->getRows(), y->getCols()) {}
 
     void compute() override {
         // b is the predicted value, a is the true value
