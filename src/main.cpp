@@ -69,13 +69,13 @@ int main(int argc, char const *argv[]) {
 
     nn.add_layer(conv2d_im2row_1);
     // nn.add_layer(make_shared<Conv2d_im2row>(minibatch_size, 28, 28, 1, 20, 5, 5, 1, 1, 0, 0));
-    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Tanh>());
     // nn.add_layer(make_shared<Conv2d_im2row>(minibatch_size, 24, 24, 20, 40, 5, 5, 1, 1, 0, 0));
     nn.add_layer(conv2d_im2row_2);
-    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Tanh>());
     nn.add_layer(linear_1);
     // nn.add_layer(make_shared<Linear>(20*20*40, 100));
-    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Tanh>());
     nn.add_layer(linear_2);
     // nn.add_layer(make_shared<Linear>(100, 10));
     // nn.add_layer(make_shared<Sigmoid>());

@@ -334,6 +334,22 @@ class Sigmoid : public Layer {
     }
 };
 
+class Tanh : public Layer {
+   public:
+
+    void construct_forward(LayerPtr prev_layer) override {
+        NodePtr inputs = prev_layer->get_output();
+        output = Node::tanh(inputs);
+        samples_along_cols = prev_layer->get_samples_along_cols();
+    }
+
+    void update(float lr, float mini_batch_size) override {}
+
+    void print() {
+        cout << "Tanh layer\n";
+    }
+};
+
 class ReLU : public Layer {
    public:
    

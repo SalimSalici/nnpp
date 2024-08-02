@@ -19,6 +19,7 @@ class DropoutNode;
 class HadamardProductNode;
 class ActivationNode;
 class SigmoidNode;
+class TanhNode;
 class PowNode;
 class MatPlusVecNode;
 class MatPlusRowVecNode;
@@ -112,6 +113,7 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr matmul(NodePtr a, NodePtr b);
     static NodePtr activation(NodePtr a, float (*act)(float), float (*act_derivative)(float));
     static NodePtr sigmoid(NodePtr a);
+    static NodePtr tanh(NodePtr a);
     static NodePtr pow(NodePtr a, float pow);
     static NodePtr rss(NodePtr y, NodePtr y_hat);
     static NodePtr mat_plus_vec(NodePtr a, NodePtr b);
@@ -795,6 +797,8 @@ NodePtr Node::activation(NodePtr a, float (*act)(float), float (*act_derivative)
 }
 
 NodePtr Node::sigmoid(NodePtr a) { return std::make_shared<SigmoidNode>(a, true); }
+
+NodePtr Node::tanh(NodePtr a) { return std::make_shared<TanhNode>(a, true); }
 
 NodePtr Node::pow(NodePtr a, float pow) { return std::make_shared<PowNode>(a, pow, true); }
 
