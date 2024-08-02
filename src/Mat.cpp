@@ -1,4 +1,5 @@
 #include "Mat.h"
+#include "SubMat.h"
 
 #include <math.h>
 #include <cstring>
@@ -165,7 +166,7 @@ void Mat::plus(Mat& result, const Mat& a, const Mat& b) {
     if (
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
-    ) throw std::invalid_argument("Matrix mismatch.");
+    ) throw std::invalid_argument("Matrix mismatch in Mat::plus. Dimensions: result(" + std::to_string(result.rows) + "," + std::to_string(result.cols) + "), a(" + std::to_string(a.rows) + "," + std::to_string(a.cols) + "), b(" + std::to_string(b.rows) + "," + std::to_string(b.cols) + ")");
     for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] + b.data[i];
 }
 
@@ -187,7 +188,7 @@ void Mat::element_op_tr_supp(Mat& result, const Mat& a, const Mat& b, std::funct
     int b_down = b.getDown();
 
     if (r_rows != a_rows || r_cols != a_cols || r_rows != b_rows || r_cols != b_cols)
-        throw std::invalid_argument("Matrix mismatch.");
+        throw std::invalid_argument("Matrix mismatch in Mat::element_op_tr_supp. Dimensions: result(" + std::to_string(r_rows) + "," + std::to_string(r_cols) + "), a(" + std::to_string(a_rows) + "," + std::to_string(a_cols) + "), b(" + std::to_string(b_rows) + "," + std::to_string(b_cols) + ")");
 
     float* r_data = result.getData();
     float* a_data = a.getData();
@@ -224,7 +225,7 @@ void Mat::element_op_tr_supp_keep_res(Mat& result, const Mat& a, const Mat& b, f
     int b_down = b.getDown();
 
     if (r_rows != a_rows || r_cols != a_cols || r_rows != b_rows || r_cols != b_cols)
-        throw std::invalid_argument("Matrix mismatch.");
+        throw std::invalid_argument("Matrix mismatch in Mat::element_op_tr_supp_keep_res. Dimensions: result(" + std::to_string(r_rows) + "," + std::to_string(r_cols) + "), a(" + std::to_string(a_rows) + "," + std::to_string(a_cols) + "), b(" + std::to_string(b_rows) + "," + std::to_string(b_cols) + ")");
 
     float* r_data = result.getData();
     float* a_data = a.getData();
@@ -245,7 +246,7 @@ void Mat::element_op_tr_supp_keep_res(Mat& result, const Mat& a, const Mat& b, f
 
 Mat Mat::operator+(const Mat& other) const {
     if (rows != other.rows || cols != other.cols)
-        throw std::invalid_argument("Matrix mismatch.");
+        throw std::invalid_argument("Matrix mismatch in Mat::operator+. Dimensions: this(" + std::to_string(rows) + "," + std::to_string(cols) + "), other(" + std::to_string(other.rows) + "," + std::to_string(other.cols) + ")");
 
     Mat result(rows, cols);
     Mat::plus(result, *this, other);
@@ -261,13 +262,13 @@ void Mat::minus(Mat& result, const Mat& a, const Mat& b) {
     if (
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
-    ) throw std::invalid_argument("Matrix mismatch.");
+    ) throw std::invalid_argument("Matrix mismatch in Mat::minus. Dimensions: result(" + std::to_string(result.rows) + "," + std::to_string(result.cols) + "), a(" + std::to_string(a.rows) + "," + std::to_string(a.cols) + "), b(" + std::to_string(b.rows) + "," + std::to_string(b.cols) + ")");
     for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] - b.data[i];
 }
 
 Mat Mat::operator-(const Mat& other) const {
     if (rows != other.rows || cols != other.cols)
-        throw std::invalid_argument("Matrix mismatch.");
+        throw std::invalid_argument("Matrix mismatch in Mat::operator-. Dimensions: this(" + std::to_string(rows) + "," + std::to_string(cols) + "), other(" + std::to_string(other.rows) + "," + std::to_string(other.cols) + ")");
 
     Mat result(rows, cols);
     Mat::minus(result, *this, other);
@@ -283,7 +284,7 @@ void Mat::hadamardProduct(Mat& result, const Mat& a, const Mat& b) {
     if (
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
-    ) throw std::invalid_argument("Matrix mismatch.");
+    ) throw std::invalid_argument("Matrix mismatch in Mat::hadamardProduct. Dimensions: result(" + std::to_string(result.rows) + "," + std::to_string(result.cols) + "), a(" + std::to_string(a.rows) + "," + std::to_string(a.cols) + "), b(" + std::to_string(b.rows) + "," + std::to_string(b.cols) + ")");
     for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] * b.data[i];
 }
 
@@ -296,13 +297,13 @@ void Mat::hadamardProduct_keep_res(Mat& result, const Mat& a, const Mat& b, floa
     if (
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
-    ) throw std::invalid_argument("Matrix mismatch.");
+    ) throw std::invalid_argument("Matrix mismatch in Mat::hadamardProduct_keep_res. Dimensions: result(" + std::to_string(result.rows) + "," + std::to_string(result.cols) + "), a(" + std::to_string(a.rows) + "," + std::to_string(a.cols) + "), b(" + std::to_string(b.rows) + "," + std::to_string(b.cols) + ")");
     for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] * b.data[i] + result.data[i] * result_scaling;
 }
 
 Mat Mat::operator*(const Mat& other) const {
     if (rows != other.rows || cols != other.cols)
-        throw std::invalid_argument("Matrix mismatch.");
+        throw std::invalid_argument("Matrix mismatch in Mat::operator*. Dimensions: this(" + std::to_string(rows) + "," + std::to_string(cols) + "), other(" + std::to_string(other.rows) + "," + std::to_string(other.cols) + ")");
 
     Mat result(rows, cols);
     Mat::hadamardProduct(result, *this, other);
@@ -311,7 +312,7 @@ Mat Mat::operator*(const Mat& other) const {
 
 Mat& Mat::operator+=(const Mat& other) {
     if (rows != other.rows || cols != other.cols)
-        throw std::invalid_argument("Matrix mismatch.");
+        throw std::invalid_argument("Matrix mismatch in Mat::operator+=. Dimensions: this(" + std::to_string(rows) + "," + std::to_string(cols) + "), other(" + std::to_string(other.rows) + "," + std::to_string(other.cols) + ")");
 
     for (int i = 0; i < size; i++) data[i] += other.data[i];
     return *this;
@@ -319,7 +320,7 @@ Mat& Mat::operator+=(const Mat& other) {
 
 Mat& Mat::operator-=(const Mat& other) {
     if (rows != other.rows || cols != other.cols)
-        throw std::invalid_argument("Matrix mismatch.");
+        throw std::invalid_argument("Matrix mismatch in Mat::operator-=. Dimensions: this(" + std::to_string(rows) + "," + std::to_string(cols) + "), other(" + std::to_string(other.rows) + "," + std::to_string(other.cols) + ")");
 
     for (int i = 0; i < size; i++) data[i] -= other.data[i];
     return *this;
@@ -640,6 +641,204 @@ void Mat::vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat) {
             sum += mat.data[mat_idx];
         }
         result.data[r] = vec[r] + sum;
+    }
+}
+
+void Mat::mat_plus_row_vec(Mat& result, const Mat& mat, const Mat& vec) {
+    if (result.rows != mat.rows || result.cols != mat.cols || vec.rows != 1 || vec.cols != mat.cols)
+        throw std::invalid_argument("Matrix dimensions mismatch for mat_plus_row_vec.");
+
+    int mat_cols = mat.cols;
+    for (int r = 0; r < mat.rows; r++) {
+        for (int c = 0; c < mat_cols; c++) {
+            int mat_idx = r * mat_cols + c;
+            result.data[mat_idx] = mat.data[mat_idx] + vec.data[c];
+        }
+    }
+}
+
+// result[i] = vec[i] + sum(mat[:,i])
+void Mat::row_vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat) {
+    if (result.rows != 1 || result.cols != vec.cols || vec.rows != 1 || vec.cols != mat.cols)
+        throw std::invalid_argument("Matrix dimensions mismatch for row_vec_plus_mat.");
+
+    int mat_cols = mat.cols;
+    for (int c = 0; c < mat_cols; c++) {
+        float sum = 0;
+        for (int r = 0; r < mat.rows; r++) {
+            int mat_idx = r * mat_cols + c;
+            sum += mat.data[mat_idx];
+        }
+        result.data[c] = vec.data[c] + sum;
+    }
+}
+
+void Mat::im2row_nhwc(Mat& result, const Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+
+    int im_cols = w * c;
+    int im_right = 1;
+    int im_down = im_cols;
+
+    int im_padded_h = h + 2 * p_h;
+    int im_padded_w = w + 2 * p_w;
+
+    int out_h = (im_padded_h - k_h) / s_h + 1;
+    int out_w = (im_padded_w - k_w) / s_w + 1;
+
+    int lowered_h = out_h * out_w * n;
+    int lowered_w = k_h * k_w * c;
+
+    if (result.size != lowered_h * lowered_w)
+        throw std::invalid_argument("Matrix dimensions mismatch for im2row_nhwc.");
+
+    if (result.isTransposed() || im.isTransposed())
+        throw std::invalid_argument("Matrix must not be transposed for im2row_nhwc.");
+
+    for (int cur_n = 0; cur_n < n; cur_n++) {
+        SubMat cur_im(im, cur_n * h, 0, h, w * c);
+        
+        for (int cur_h = 0; cur_h < out_h; cur_h++) {
+            for (int cur_w = 0; cur_w < out_w; cur_w++) {
+                int row_idx = (cur_n * out_h * out_w + cur_h * out_w + cur_w) * lowered_w;
+                for (int kh = 0; kh < k_h; kh++) {
+                    for (int kw = 0; kw < k_w; kw++) {
+                        for (int cc = 0; cc < c; cc++) {
+                            int im_h = cur_h * s_h + kh - p_h;
+                            int im_w = cur_w * s_w + kw - p_w;
+                            float val = cur_im.get_element_fallback(im_h, im_w * c + cc, 0.0f);
+                            result.data[row_idx++] = val;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Mat::row2img_nhwc_additive(Mat& result, const Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+    int im_padded_h = h + 2 * p_h;
+    int im_padded_w = w + 2 * p_w;
+
+    int out_h = (im_padded_h - k_h) / s_h + 1;
+    int out_w = (im_padded_w - k_w) / s_w + 1;
+
+    int lowered_h = out_h * out_w * n;
+    int lowered_w = k_h * k_w * c;
+
+    if (lowered.getSize() != lowered_h * lowered_w)
+        throw std::invalid_argument("Matrix dimensions mismatch for row2img_nhwc_additive.");
+
+    if (result.getSize() != n * h * w * c)
+        throw std::invalid_argument("Result matrix dimensions mismatch for row2img_nhwc_additive.");
+
+    if (result.isTransposed() || lowered.isTransposed())
+        throw std::invalid_argument("Matrices must not be transposed for row2img_nhwc_additive.");
+
+    float* result_data = result.getData();
+    float* lowered_data = lowered.getData();
+
+    // Initialize result matrix with zeros
+    // std::fill(result_data, result_data + result.getSize(), 0.0f);
+
+    for (int cur_n = 0; cur_n < n; cur_n++) {
+        for (int cur_h = 0; cur_h < out_h; cur_h++) {
+            for (int cur_w = 0; cur_w < out_w; cur_w++) {
+                int row_idx = (cur_n * out_h * out_w + cur_h * out_w + cur_w) * lowered_w;
+                for (int kh = 0; kh < k_h; kh++) {
+                    for (int kw = 0; kw < k_w; kw++) {
+                        for (int cc = 0; cc < c; cc++) {
+                            int im_h = cur_h * s_h + kh - p_h;
+                            int im_w = cur_w * s_w + kw - p_w;
+                            if (im_h >= 0 && im_h < h && im_w >= 0 && im_w < w) {
+                                int result_idx = ((cur_n * h + im_h) * w + im_w) * c + cc;
+                                result_data[result_idx] += lowered_data[row_idx];
+                            }
+                            row_idx++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Mat::im2col_nhwc(Mat& result, const Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+    int im_padded_h = h + 2 * p_h;
+    int im_padded_w = w + 2 * p_w;
+
+    int out_h = (im_padded_h - k_h) / s_h + 1;
+    int out_w = (im_padded_w - k_w) / s_w + 1;
+
+    int lowered_h = k_h * k_w * c;
+    int lowered_w = out_h * out_w * n;
+
+    if (result.size != lowered_h * lowered_w)
+        throw std::invalid_argument("Matrix dimensions mismatch for im2col_nhwc.");
+
+    if (result.isTransposed() || im.isTransposed())
+        throw std::invalid_argument("Matrix must not be transposed for im2col_nhwc.");
+
+    for (int cur_n = 0; cur_n < n; cur_n++) {
+        SubMat cur_im(im, cur_n * h, 0, h, w * c);
+        
+        for (int cur_h = 0; cur_h < out_h; cur_h++) {
+            for (int cur_w = 0; cur_w < out_w; cur_w++) {
+                int col_idx = (cur_h * out_w + cur_w) * n + cur_n;
+                for (int kh = 0; kh < k_h; kh++) {
+                    for (int kw = 0; kw < k_w; kw++) {
+                        for (int cc = 0; cc < c; cc++) {
+                            int im_h = cur_h * s_h + kh - p_h;
+                            int im_w = cur_w * s_w + kw - p_w;
+                            float val = cur_im.get_element_fallback(im_h, im_w * c + cc, 0.0f);
+                            result.data[(kh * k_w * c + kw * c + cc) * lowered_w + col_idx] = val;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Mat::col2img_nhwc_additive(Mat& result, const Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+    int im_padded_h = h + 2 * p_h;
+    int im_padded_w = w + 2 * p_w;
+
+    int out_h = (im_padded_h - k_h) / s_h + 1;
+    int out_w = (im_padded_w - k_w) / s_w + 1;
+
+    int lowered_h = k_h * k_w * c;
+    int lowered_w = out_h * out_w * n;
+
+    if (lowered.getSize() != lowered_h * lowered_w)
+        throw std::invalid_argument("Matrix dimensions mismatch for col2img_nhwc_additive.");
+
+    if (result.getSize() != n * h * w * c)
+        throw std::invalid_argument("Result matrix dimensions mismatch for col2img_nhwc_additive.");
+
+    if (result.isTransposed() || lowered.isTransposed())
+        throw std::invalid_argument("Matrices must not be transposed for col2img_nhwc_additive.");
+
+    float* result_data = result.getData();
+    float* lowered_data = lowered.getData();
+
+    for (int cur_n = 0; cur_n < n; cur_n++) {
+        for (int cur_h = 0; cur_h < out_h; cur_h++) {
+            for (int cur_w = 0; cur_w < out_w; cur_w++) {
+                int col_idx = (cur_h * out_w + cur_w) * n + cur_n;
+                for (int kh = 0; kh < k_h; kh++) {
+                    for (int kw = 0; kw < k_w; kw++) {
+                        for (int cc = 0; cc < c; cc++) {
+                            int im_h = cur_h * s_h + kh - p_h;
+                            int im_w = cur_w * s_w + kw - p_w;
+                            if (im_h >= 0 && im_h < h && im_w >= 0 && im_w < w) {
+                                int result_idx = ((cur_n * h + im_h) * w + im_w) * c + cc;
+                                result_data[result_idx] += lowered_data[(kh * k_w * c + kw * c + cc) * lowered_w + col_idx];
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

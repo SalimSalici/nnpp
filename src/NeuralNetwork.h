@@ -42,11 +42,11 @@ class NeuralNetwork {
     }
 
     void setup_computatioal_graph() {
-        layers[0]->construct_forward(input_layer->get_output());
+        layers[0]->construct_forward(input_layer);
         for (auto it = layers.begin() + 1; it != layers.end(); ++it) {
             auto& current = *it;
             auto& previous = *(it - 1);
-            current->construct_forward(previous->get_output());
+            current->construct_forward(previous);
         }
     }
 
@@ -218,6 +218,12 @@ class NeuralNetwork {
 
     void set_loss_type(LossType loss_type) {
         this->loss_type = loss_type;
+    }
+
+    void freeze_params() {
+        for (auto& layer : layers) {
+            layer->freeze_params();
+        }
     }
 
    private:

@@ -21,8 +21,11 @@ class ActivationNode;
 class SigmoidNode;
 class PowNode;
 class MatPlusVecNode;
+class MatPlusRowVecNode;
 class RSSNode;
 class TransposeNode;
+class Im2rowNode;
+class ReshapeNode;
 
 using namespace std;
 using NodePtr = std::shared_ptr<Node>;
@@ -112,9 +115,13 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr pow(NodePtr a, float pow);
     static NodePtr rss(NodePtr y, NodePtr y_hat);
     static NodePtr mat_plus_vec(NodePtr a, NodePtr b);
+    static NodePtr mat_plus_row_vec(NodePtr a, NodePtr b);
     static NodePtr dropout(int rows, int cols, float dropout_rate, bool requires_grad);
     static NodePtr hadamard_product(NodePtr a, NodePtr b);
     static NodePtr transpose(NodePtr a);
+    static NodePtr im2row(NodePtr a, int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w, int p_h, int p_w, bool requires_grad = true);
+    static NodePtr reshape(NodePtr a, int reshaped_rows, int reshaped_cols, bool requires_grad = true);
 
     static void forwardPass(deque<NodePtr>& sorted_nodes) {
         for (auto it = sorted_nodes.rbegin(); it != sorted_nodes.rend(); ++it) {
@@ -337,6 +344,36 @@ class MatPlusVecNode : public BinaryNode {
         }
         if (b->get_requires_grad()) {
             Mat::vec_plus_mat(b->getGrad(), b->getGrad(), grad);
+        }
+    }
+};
+
+class MatPlusRowVecNode : public BinaryNode {
+   public:
+    MatPlusRowVecNode(NodePtr a, NodePtr b, bool requires_grad) 
+        : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
+
+    void compute() override {
+
+        #if LOG_OPERATIONS
+
+        std::cout << "mat_plus_row_veccing" << std::endl;
+
+        std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
+        std::cout << "b: " << b->getData().getRows() << "x" << b->getData().getCols() << std::endl << std::endl;
+
+        #endif
+
+        Mat::mat_plus_row_vec(data, a->getData(), b->getData());
+    }
+
+    void back() override {
+        // cout << "PLUS BACK\n";
+        if (a->get_requires_grad()) {
+            Mat::plus(a->getGrad(), a->getGrad(), grad);
+        }
+        if (b->get_requires_grad()) {
+            Mat::row_vec_plus_mat(b->getGrad(), b->getGrad(), grad);
         }
     }
 };
@@ -632,6 +669,117 @@ class TransposeNode : public UnaryNode {
     }
 };
 
+class ReshapeNode : public UnaryNode {
+    public:
+
+    ReshapeNode(NodePtr a, int reshaped_rows, int reshaped_cols, bool requires_grad)
+        : UnaryNode(
+            a, 
+            calculateRows(a, reshaped_rows, reshaped_cols),         
+            calculateCols(a, reshaped_rows, reshaped_cols), 
+            requires_grad
+        ) {
+            if (reshaped_rows <= 0 && reshaped_cols <= 0) {
+                throw invalid_argument("At least one of the reshaped dimensions must be positive.");
+            }
+        }
+
+    void compute() override {
+
+        #if LOG_OPERATIONS
+
+        std::cout << "reshaping (view)" << std::endl;
+        std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
+        std::cout << "into " << data.getRows() << "x" << data.getCols() << std::endl << std::endl;
+
+        #endif
+
+        data.view(a->getData());
+        grad.view(a->getGrad());
+    }
+
+    bool get_requires_grad() override {
+        return a->get_requires_grad();
+    }
+
+    private:
+
+    static int calculateRows(NodePtr a, int reshaped_rows, int reshaped_cols) {
+        int _size = a->getData().getSize();
+        return reshaped_rows == -1 ? _size / reshaped_cols : reshaped_rows;
+    }
+
+    static int calculateCols(NodePtr a, int reshaped_rows, int reshaped_cols) {
+        int _size = a->getData().getSize();
+        return reshaped_cols == -1 ? _size / reshaped_rows : reshaped_cols;
+    }
+
+};
+
+class Im2rowNode : public UnaryNode {
+    public:
+
+    Im2rowNode(NodePtr a, 
+        int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w, int p_h, int p_w, bool requires_grad
+    )
+    : UnaryNode(
+        a,
+        ((h + 2 * p_h - k_h) / s_h + 1) * ((w + 2 * p_w - k_w) / s_w + 1) * n, 
+        k_h * k_w * c, requires_grad
+    ) {    
+        this->n = n;
+        this->h = h;
+        this->w = w;
+        this->c = c;
+        this->k_h = k_h;
+        this->k_w = k_w;
+        this->s_h = s_h;
+        this->s_w = s_w;
+        this->p_h = p_h;
+        this->p_w = p_w;
+
+        int im_padded_h = h + 2 * p_h;
+        int im_padded_w = w + 2 * p_w;
+
+        int out_h = (im_padded_h - k_h) / s_h + 1;
+        int out_w = (im_padded_w - k_w) / s_w + 1;
+
+        this->lowered_h = out_h * out_w * n;
+        this->lowered_w = k_h * k_w * c;
+    }
+    
+    
+    void compute() override {
+
+        #if LOG_OPERATIONS
+
+        std::cout << "im2rowing" << std::endl;
+
+        std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
+        std::cout << "out: " << data.getRows() << "x" << data.getCols() << std::endl << std::endl << std::endl;
+
+        #endif
+
+        Mat::im2row_nhwc(data, a->getData(), n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w);
+    }
+    
+    void back() override {
+        // cout << "IM2ROW BACK\n";
+        if (a->get_requires_grad()) {
+            Mat::row2img_nhwc_additive(a->getGrad(), grad, n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w);
+        }
+    }
+    
+    private:
+
+    int n, h, w, c;
+    int k_h, k_w;
+    int s_h, s_w;
+    int p_h, p_w;
+    int lowered_h, lowered_w;
+};
+
 NodePtr Node::operator+(NodePtr other) { return std::make_shared<PlusNode>(shared_from_this(), other, true); }
 
 NodePtr Node::plus(NodePtr a, NodePtr b) { return std::make_shared<PlusNode>(a, b, true); }
@@ -652,6 +800,8 @@ NodePtr Node::pow(NodePtr a, float pow) { return std::make_shared<PowNode>(a, po
 
 NodePtr Node::mat_plus_vec(NodePtr a, NodePtr b) { return std::make_shared<MatPlusVecNode>(a, b, true); }
 
+NodePtr Node::mat_plus_row_vec(NodePtr a, NodePtr b) { return std::make_shared<MatPlusRowVecNode>(a, b, true); }
+
 NodePtr Node::dropout(int rows, int cols, float dropout_rate, bool requires_grad) {
     return std::make_shared<DropoutNode>(rows, cols, dropout_rate, requires_grad);
 }
@@ -659,5 +809,14 @@ NodePtr Node::dropout(int rows, int cols, float dropout_rate, bool requires_grad
 NodePtr Node::hadamard_product(NodePtr a, NodePtr b) { return std::make_shared<HadamardProductNode>(a, b, true); }
 
 NodePtr Node::transpose(NodePtr a) { return std::make_shared<TransposeNode>(a, true); }
+
+NodePtr Node::im2row(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w,
+    int p_h, int p_w, bool requires_grad) {
+    return std::make_shared<Im2rowNode>(a, n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w, requires_grad);
+}
+
+NodePtr Node::reshape(NodePtr a, int reshaped_rows, int reshaped_cols, bool requires_grad) {
+    return std::make_shared<ReshapeNode>(a, reshaped_rows, reshaped_cols, requires_grad);
+}
 
 #endif
