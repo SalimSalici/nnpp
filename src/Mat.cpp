@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <functional>
+#include <limits>
 
 extern "C" {
 #include <cblas.h>
@@ -69,6 +70,24 @@ Mat& Mat::operator=(Mat&& other) {
     return *this;
 }
 
+bool Mat::operator==(const Mat& other) {
+    if (this->is_transposed || other.is_transposed) {
+        throw std::runtime_error("Comparison of transposed matrices is not supported.");
+    }
+
+    if (this->rows != other.rows || this->cols != other.cols) {
+        return false;
+    }
+
+    for (int i = 0; i < this->size; ++i) {
+        if (this->data[i] != other.data[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 Mat::~Mat() {
     if (!is_view && data != nullptr)
         delete[] data;
@@ -80,6 +99,22 @@ void Mat::print() const {
         for (int c = 0; c < cols; c++) std::cout << data[r * cols + c] << " ";
         std::cout << "\n";
     }
+}
+
+void Mat::print_ascii_greyscale() const {
+    const char* shades = " .:-=+*#%@";
+    const int num_shades = 10;
+
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            float value = data[r * cols + c];
+            value = std::max(0.0f, std::min(1.0f, value));
+            int shade_index = static_cast<int>(value * (num_shades - 1));
+            std::cout << shades[shade_index];
+        }
+        std::cout << "\n";
+    }
+    std::cout << std::flush;
 }
 
 int Mat::getRows() const {
@@ -339,6 +374,17 @@ float Mat::getElement(int row, int col) const {
     }
     int i = row * cols + col;
     if (i >= size) throw std::invalid_argument("Index out of bounds.");
+    return data[i];
+}
+
+float Mat::get_element_fallback(int row, int col, float fallback) const {
+    if (is_transposed) {
+        int temp = row;
+        row = col;
+        col = temp;
+    }
+    int i = row * cols + col;
+    if (i >= size) return fallback;
     return data[i];
 }
 
@@ -673,11 +719,11 @@ void Mat::row_vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat) {
     }
 }
 
-void Mat::im2row_nhwc(Mat& result, const Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+void Mat::im2row_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
 
-    int im_cols = w * c;
-    int im_right = 1;
-    int im_down = im_cols;
+    // int im_cols = w * c;
+    // int im_right = 1;
+    // int im_down = im_cols;
 
     int im_padded_h = h + 2 * p_h;
     int im_padded_w = w + 2 * p_w;
@@ -715,7 +761,7 @@ void Mat::im2row_nhwc(Mat& result, const Mat& im, int n, int h, int w, int c, in
     }
 }
 
-void Mat::row2img_nhwc_additive(Mat& result, const Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+void Mat::row2img_nhwc_additive(Mat& result, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
     int im_padded_h = h + 2 * p_h;
     int im_padded_w = w + 2 * p_w;
 
@@ -762,7 +808,7 @@ void Mat::row2img_nhwc_additive(Mat& result, const Mat& lowered, int n, int h, i
     }
 }
 
-void Mat::im2col_nhwc(Mat& result, const Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+void Mat::im2col_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
     int im_padded_h = h + 2 * p_h;
     int im_padded_w = w + 2 * p_w;
 
@@ -799,7 +845,7 @@ void Mat::im2col_nhwc(Mat& result, const Mat& im, int n, int h, int w, int c, in
     }
 }
 
-void Mat::col2img_nhwc_additive(Mat& result, const Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+void Mat::col2img_nhwc_additive(Mat& result, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
     int im_padded_h = h + 2 * p_h;
     int im_padded_w = w + 2 * p_w;
 
@@ -853,8 +899,8 @@ Mat Mat::view(int rows, int cols) {
     if (size != rows * cols)
         throw std::invalid_argument("Matrix dimensions mismatch for view.");
 
-    int _rows = rows == -1 ? size / cols : rows;
-    int _cols = cols == -1 ? size / rows : cols;
+    // int _rows = rows == -1 ? size / cols : rows;
+    // int _cols = cols == -1 ? size / rows : cols;
 
     Mat result(rows, cols, false);
     result.is_view = true;
@@ -877,5 +923,199 @@ void Mat::view(const Mat& other) {
         delete[] data;
         data = other.data;
         is_view = true;
+    }
+}
+
+void Mat::mec_lower(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+    int im_padded_h = h + 2 * p_h;
+    int im_padded_w = w + 2 * p_w;
+
+    int o_w = (im_padded_w - k_w) / s_w + 1;
+    // int o_h = (im_padded_h - k_h) / s_h + 1;
+
+    if (result.size != n * o_w * im_padded_h * k_w * c)
+        throw std::invalid_argument("Matrix 'result' dimensions mismatch for mec_lower.");
+
+    if (im.size != n * h * w * c)
+        throw std::invalid_argument("Matrix 'im' dimensions mismatch for mec_lower.");
+
+    float *res_data = result.getData();
+    // float *im_data = im.getData();
+
+    for (int nn = 0; nn < n; nn++) {
+        SubMat cur_im(im, nn * h, 0, h, w * c);
+        // float* cur_im_data = im_data + nn * h * w * c;
+        for (int ww = 0; ww < o_w; ww++) {
+            int col_idx = ww * s_w * c - p_w;
+            float* cur_res_data = res_data + (nn * im_padded_h * k_w * c * o_w + ww * im_padded_h * k_w * c);
+            for (int hh = -p_h; hh < h + p_h; hh++) {
+                for (int kw = 0; kw < k_w; kw++) {
+                    int im_w = col_idx + kw * c;
+                    for (int cc = 0; cc < c; cc++) {
+                        float val = cur_im.get_element_fallback(hh, im_w + cc, 0.0f);
+                        *cur_res_data = val;
+                        cur_res_data++;
+                    }
+                }
+            }
+        }
+    }
+
+    // TODO: If padding is 0, this could be an optimization (from old nn project):
+    // for (int n = 0; n < N; n++) {
+        
+    //     float* cur_input_start;
+    //     if (inputs_sep == NULL)
+    //         cur_input_start = inputs_data + n * H * W * C;
+    //     else
+    //         cur_input_start = inputs_sep[n]->data;
+
+    //     for (int w_o = 0; w_o < w_out; w_o++) {
+    //         int w_s = w_o * C * stride;
+    //         for (int h_i = 0; h_i < H; h_i++) {
+    //             memcpy(cur_lowered_data, cur_input_start + w_s + h_i * W * C, sizeof(float) * kw * C);
+    //             cur_lowered_data += kw * C;
+    //         }
+    //     }
+    // }
+}
+
+void Mat::mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+    int im_padded_h = h + 2 * p_h;
+    int im_padded_w = w + 2 * p_w;
+
+    int o_w = (im_padded_w - k_w) / s_w + 1;
+    // int o_h = (im_padded_h - k_h) / s_h + 1;
+
+    if (lowered.getSize() != n * o_w * im_padded_h * k_w * c)
+        throw std::invalid_argument("Matrix 'lowered' dimensions mismatch for mec_lower.");
+
+    if (im.getSize() != n * h * w * c)
+        throw std::invalid_argument("Matrix 'im' dimensions mismatch for mec_lower.");
+
+    float *res_data = lowered.getData();
+    // float *im_data = im.getData();
+
+    for (int nn = 0; nn < n; nn++) {
+        SubMat cur_im(im, nn * h, 0, h, w * c);
+        // float* cur_im_data = im_data + nn * h * w * c;
+        for (int ww = 0; ww < o_w; ww++) {
+            int col_idx = ww * s_w * c - p_w;
+            float* cur_res_data = res_data + (nn * im_padded_h * k_w * c * o_w + ww * im_padded_h * k_w * c);
+            for (int hh = -p_h; hh < h + p_h; hh++) {
+                for (int kw = 0; kw < k_w; kw++) {
+                    int im_w = col_idx + kw * c;
+                    for (int cc = 0; cc < c; cc++) {
+                        float val = cur_im.get_element_fallback(hh, im_w + cc, 0.0f);
+                        cur_im.put_ignore_overflow(val + *cur_res_data, hh, im_w + cc);
+                        // cur_im.put_ignore_overflow(*cur_res_data, hh, im_w + cc);
+                        cur_res_data++;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int* indeces) {
+    int o_h = (h - k_h) / s_h + 1;
+    int o_w = (w - k_w) / s_w + 1;
+
+    if (result.getSize() != n * o_h * o_w * c)
+        throw std::invalid_argument("Matrix 'result' dimensions mismatch for maxpool_hnwc.");
+
+    if (im.getSize() != n * h * w * c)
+        throw std::invalid_argument("Matrix 'im' dimensions mismatch for maxpool_hnwc.");
+
+    float *res_data = result.getData();
+    float *im_data = im.getData();
+
+    int im_down = im.getDown();
+
+    float minus_inf = -std::numeric_limits<float>::infinity();
+
+    for (int nn = 0; nn < n; nn++) {
+        for (int hh = 0; hh < o_h; hh++) {
+            for (int ww = 0; ww < o_w; ww++) {
+                for (int cc = 0; cc < c; cc++) {
+                    float max_val = minus_inf;
+                    int max_idx = 0;
+                    for (int kh = 0; kh < k_h; kh++) {
+                        for (int kw = 0; kw < k_w; kw++) {
+                            int h_idx = hh * s_h + kh;
+                            int w_idx = ww * s_w + kw;
+                            if (h_idx < h && w_idx < w) {
+                                // int idx = (nn * h + h_idx) * w * c + w_idx * c + cc;
+                                int idx = nn * w * c + (h_idx * im_down) + w_idx * c + cc;
+                                float val = im_data[idx];
+                                if (max_val < val) {
+                                    max_val = val;
+                                    max_idx = idx;
+                                }
+                                // max_val = max_val > val ? max_val : val;
+                            }
+                        }
+                    }
+                    // std::cout << (nn * o_h * o_w + hh * o_w + ww) * c + cc << ", max_idx: " << max_idx << ", max_val: " << max_val << std::endl;
+                    res_data[(nn * o_h * o_w + hh * o_w + ww) * c + cc] = max_val;
+                    *indeces = max_idx;
+                    indeces++;
+                }
+            }
+        }
+    }
+}
+
+void Mat::mec_conv(Mat& result, Mat& lowered, Mat& kernels, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w) {
+    int o_h = (h - k_h) / s_h + 1;
+    int o_w = (w - k_w) / s_w + 1;
+
+    if (result.getSize() != n * o_h * o_w * kernels.getCols())
+        throw std::invalid_argument("Matrix 'result' dimensions mismatch for mec_mm.");
+
+    if (lowered.getSize() != n * o_w * h * k_w * c)
+        throw std::invalid_argument("Matrix 'lowered' dimensions mismatch for mec_mm.");
+
+    if (kernels.getRows() != k_h * k_w * c)
+        throw std::invalid_argument("Matrix 'kernels' dimensions mismatch for mec_mm.");
+
+    int lowered_rows = lowered.getRows();
+    int kc = kernels.getCols();
+
+    // #pragma omp parallel for
+    for (int h = 0; h < o_h; h++) {
+        float* lowered_start = lowered.getData() + h * s_h * k_w * c;
+        float* result_start = result.getData() + h * o_w * kc * n;
+
+        cblas_sgemm(CblasRowMajor, 
+                    CblasNoTrans, CblasNoTrans,
+                    lowered_rows, kc, kernels.getRows(),
+                    1.0f, lowered_start, lowered.getCols(),
+                    kernels.getData(), kernels.getCols(),
+                    0.0f, result_start, kernels.getCols());
+    }
+}
+
+void Mat::mec_back_into_lowered(Mat& result, Mat& grad, Mat& kernels, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w) {
+    int o_h = (h - k_h) / s_h + 1;
+    int o_w = (w - k_w) / s_w + 1;
+
+    int k_c = kernels.getCols();
+
+    float* grad_data = grad.getData();
+    float* result_data = result.getData();
+    float* kernels_data = kernels.getData();
+
+    for (int h = 0; h < o_h; h++) {
+
+        // float* other_start = other->mat->data + h * stride * C_in * kw;
+        float* next_grad_start = grad_data + h * o_w * k_c * n;
+        float* result_start = result_data + h * s_h * k_w * c;
+
+        cblas_sgemm(CblasRowMajor,
+                CblasNoTrans, CblasTrans,
+                result.getRows(), kernels.getRows(), k_c,
+                1.0, next_grad_start, k_c, kernels_data, k_c,
+                1.0, result_start, result.getCols());
     }
 }

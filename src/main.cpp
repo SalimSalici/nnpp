@@ -18,10 +18,11 @@ int main(int argc, char const *argv[]) {
 
     std::srand(std::time(0));
 
-    int training_samples_count = 100;
+    int training_samples_count = 600;
     int test_samples_count = 1000;
     float black = 0;
     float white = 1;
+
 
     // MNIST
     MnistSample* training_data = mnist_load_samples("data/train-images.idx3-ubyte", "data/train-labels.idx1-ubyte", 0, training_samples_count, black, white);
@@ -41,60 +42,51 @@ int main(int argc, char const *argv[]) {
     free(training_data);
     free(test_data);
 
-    // for (int i = 0; i < 10; i++) {
-    //     mnist_print_image(training_samples[i].getData());
-    //     cout << "Label: " << training_samples[i].index_from_label() << endl;
-    // }
-
-    // NeuralNetwork nn(28*28);
-
-    // nn.add_layer(make_shared<Linear>(28*28, 30));
-    // nn.add_layer(make_shared<Sigmoid>());
-    // nn.add_layer(make_shared<Linear>(30, 10));
-    // nn.add_layer(make_shared<Sigmoid>());
-    // // nn.set_loss_type(LossType::CCE);
-    // nn.set_loss_type(LossType::MSE);
-
     float lr = 0.1;
     int epochs = 30;
+
 
     int minibatch_size = 10;
 
     NeuralNetwork nn(28*28);
 
-    shared_ptr<Layer> conv2d_im2row_1 = make_shared<Conv2d_im2row>(minibatch_size, 28, 28, 1, 20, 5, 5, 1, 1, 0, 0);
-    shared_ptr<Layer> conv2d_im2row_2 = make_shared<Conv2d_im2row>(minibatch_size, 24, 24, 20, 40, 5, 5, 1, 1, 0, 0);
-    shared_ptr<Layer> linear_1 = make_shared<Linear>(20*20*40, 100);
-    shared_ptr<Layer> linear_2 = make_shared<Linear>(100, 10);
+    int c_out_1 = 20;
+    int c_out_2 = 40;
 
-    nn.add_layer(conv2d_im2row_1);
-    // nn.add_layer(make_shared<Conv2d_im2row>(minibatch_size, 28, 28, 1, 20, 5, 5, 1, 1, 0, 0));
-    nn.add_layer(make_shared<Tanh>());
-    // nn.add_layer(make_shared<Conv2d_im2row>(minibatch_size, 24, 24, 20, 40, 5, 5, 1, 1, 0, 0));
-    nn.add_layer(conv2d_im2row_2);
-    nn.add_layer(make_shared<Tanh>());
+    shared_ptr<Conv2d_mec> conv_1 = make_shared<Conv2d_mec>(minibatch_size, 28, 28, 1, c_out_1, 5, 5, 1, 1, 0, 0);
+    shared_ptr<Conv2d_mec> conv_2 = make_shared<Conv2d_mec>(minibatch_size, 12, 12, c_out_1, c_out_2, 5, 5, 1, 1, 0, 0);
+
+    shared_ptr<Linear> linear_1 = make_shared<Linear>(4*4*c_out_2, 100);
+    shared_ptr<Linear> linear_2 = make_shared<Linear>(100, 10);
+
+    nn.add_layer(conv_1);
+    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Maxpool_hnwc_to_nhwc>(minibatch_size, 24, 24, c_out_1, 2, 2, 2, 2));
+
+    nn.add_layer(conv_2);
+    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Maxpool_hnwc_to_nhwc>(minibatch_size, 8, 8, c_out_2, 2, 2, 2, 2));
+
     nn.add_layer(linear_1);
-    // nn.add_layer(make_shared<Linear>(20*20*40, 100));
-    nn.add_layer(make_shared<Tanh>());
+    nn.add_layer(make_shared<ReLU>());
     nn.add_layer(linear_2);
-    // nn.add_layer(make_shared<Linear>(100, 10));
-    // nn.add_layer(make_shared<Sigmoid>());
     nn.set_loss_type(LossType::CCE);
 
     nn.initialize_layers();
 
-
-    
     // nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
     nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, training_samples, training_samples_count);
 
-    cin.get();
 
-    // nn.freeze_params();
+    cin.get();
     linear_1->freeze_params();
     linear_2->freeze_params();
-    conv2d_im2row_1->initialize();
-    conv2d_im2row_2->initialize();
+
+    conv_1->initialize();
+    conv_2->initialize();
+
+    // conv_1->freeze_params();
+    // conv_2->freeze_params();
 
     nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, training_samples, training_samples_count);
 

@@ -14,8 +14,12 @@ class Mat {
     Mat& operator=(const Mat& other);
     // Move assignment
     Mat& operator=(Mat&& other);
+
+    bool operator==(const Mat& other);
+
     ~Mat();
     void print() const;
+    void print_ascii_greyscale() const;
     Mat& copy_from(const float* other_data);
     Mat& put(float value, int row, int col);
     Mat& zero();
@@ -40,6 +44,7 @@ class Mat {
     Mat operator*(const Mat& other) const;
     float operator[](int idx) const;
     float getElement(int row, int col) const;
+    float get_element_fallback(int row, int col, float fallback) const;
     static Mat matmul(const Mat& a, const Mat& b);
     static Mat apply(const Mat& a, float (*act)(float));
     static Mat pow(const Mat& a, int power);
@@ -72,11 +77,16 @@ class Mat {
     static void vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat);
     static void mat_plus_row_vec(Mat& result, const Mat& mat, const Mat& vec);
     static void row_vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat);
-    static void im2row_nhwc(Mat& result, const Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
-    static void row2img_nhwc_additive(Mat& result, const Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
-    static void im2col_nhwc(Mat& result, const Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
-    static void col2img_nhwc_additive(Mat& result, const Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
-    
+    static void im2row_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
+    static void row2img_nhwc_additive(Mat& result, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
+    static void im2col_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
+    static void col2img_nhwc_additive(Mat& result, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
+    static void mec_lower(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
+    static void mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
+    static void mec_conv(Mat& result, Mat& lowered, Mat& kernels, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w);
+    static void mec_back_into_lowered(Mat& result, Mat& lowered, Mat& kernels, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w);
+    static void maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int* indeces);
+
     float* getData() const;
     int getRows() const;
     int getCols() const;

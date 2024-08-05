@@ -8,6 +8,10 @@
 #include <memory>
 #include <cmath>
 
+extern "C" {
+#include <cblas.h>
+}
+
 class Layer;
 
 using namespace std;
@@ -80,14 +84,8 @@ class Layer {
 class InputLayer : public Layer {
     public:
 
-    InputLayer(int size, int mini_batch_size) {
-        //// requires_grad = false for input layer -----------v
-        // output = make_shared<Node>(mini_batch_size, size, false);
-        // output->getData().transpose();
-        // output->getGrad().transpose();
-        // this->size = size;
-
-        inputs = make_shared<Node>(mini_batch_size, size, false);
+    InputLayer(int size, int mini_batch_size, bool requires_grad = false) {
+        inputs = make_shared<Node>(mini_batch_size, size, requires_grad);
         output = inputs;
         samples_along_cols = false;
         this->size = size;
@@ -106,6 +104,12 @@ class InputLayer : public Layer {
 
         for (int i = 0, j = 0; j < mini_batch_size; i += size, j++)
             std::memcpy(data + i, samples[j]->getData(), size * sizeof(float));
+    }
+
+    void load_raw(float* data, int data_size) {
+        // float* data = output->getData().getData();
+        float* data_ = inputs->getData().getData();
+        std::memcpy(data_, data, data_size * sizeof(float));
     }
 
     void update(float lr, float mini_batch_size) override {}
@@ -245,6 +249,7 @@ class Conv2d_im2row : public Layer {
     }
 
     void update (float lr, float mini_batch_size) override {
+        if (params_freezed) return;
         im2row_lowered->getData().transpose();
         Mat::matmul_mm(kernels->getData(), im2row_lowered->getData(), conv->getGrad(), -lr/mini_batch_size, 1);
         im2row_lowered->getData().transpose();
@@ -287,6 +292,194 @@ class Conv2d_im2row : public Layer {
     NodePtr conv_reshaped;
     NodePtr bias;
     NodePtr mat_plus_row_vec;
+};
+
+class Conv2d_mec : public Layer {
+    public: 
+
+    Conv2d_mec(int n, int h, int w, int c_i, int c_o, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w)
+    : n(n), h(h), w(w), c_i(c_i), c_o(c_o), k_h(k_h), k_w(k_w), s_h(s_h), s_w(s_w), p_h(p_h), p_w(p_w) {
+        out_h = (h + 2 * p_h - k_h) / s_h + 1;
+        out_w = (w + 2 * p_w - k_w) / s_w + 1;
+
+        kernels = make_shared<Node>(c_i * k_h * k_w, c_o, false);
+        bias = make_shared<Node>(1, c_o, true);
+
+        im_padded_h = h + 2 * p_h;
+        im_padded_w = w + 2 * p_w;
+
+        samples_along_cols = false;
+    }
+
+    Conv2d_mec(int n, int h, int w, int c_i, int c_o, int kernel_size, int stride, int padding)
+    : Conv2d_mec(n, h, w, c_i, c_o, kernel_size, kernel_size, stride, stride, padding, padding) {}
+
+    void construct_forward(LayerPtr prev_layer) override {
+
+        if (prev_layer->get_samples_along_cols() == true) {
+            throw std::invalid_argument("Error: inputs must be along rows, not columns");
+            return;
+        }
+
+        NodePtr inputs = prev_layer->get_output();
+
+        n = inputs->getData().getRows();
+
+        inputs_reshaped = Node::reshape(inputs, n * h, w * c_i);
+
+        mec_lowered = Node::mec_lower(inputs_reshaped, n, h, w, c_i, k_h, k_w, s_h, s_w, p_h, p_w);
+
+        conv_hnwc = Node::mec_conv_mm(mec_lowered, kernels, n, im_padded_h, im_padded_w, c_i, k_h, k_w, s_h, s_w);
+
+        conv_reshaped_for_bias = Node::reshape(conv_hnwc, -1, c_o);
+
+        conv_plus_bias = Node::mat_plus_row_vec(conv_reshaped_for_bias, bias);
+        
+        output = Node::reshape(conv_plus_bias, out_h, n * out_w * c_o);
+    }
+
+    void update (float lr, float mini_batch_size) override {
+        if (params_freezed) return;
+        update_kernels(lr, mini_batch_size);
+        bias->getData() -= Mat::scale(bias->getGrad(), lr / mini_batch_size);
+    }
+
+    void update_kernels(float lr, float mini_batch_size) {
+
+        int next_grad_rows = out_w * n;
+        int next_grad_cols = c_o;
+
+        float* other_start = mec_lowered->getData().getData();
+        float* next_grad_start = conv_hnwc->getGrad().getData();
+
+        for (int hh = 0; hh < out_h; hh++) {
+            float* cur_other_start = other_start + hh * s_h * c_i * k_w;
+            float* cur_next_grad_start = next_grad_start + hh * out_w * c_o * n;
+
+            cblas_sgemm(CblasRowMajor,
+                    CblasTrans, CblasNoTrans,
+                    kernels->getRows(), kernels->getCols(), next_grad_rows,
+                    // ERROR HERE: OTHER_START VS CUR_OTHER_START and NEXT_GRAD_START VS CUR_NEXT_GRAD_START
+                    -lr / mini_batch_size, cur_other_start, mec_lowered->getData().getCols(), cur_next_grad_start, next_grad_cols,
+                    1.0, kernels->getData().getData(), c_o);            
+        }
+
+    }
+
+    void initialize() {
+        if (params_freezed) return;
+        initialize_xavier();
+    }
+
+    void initialize_xavier() {
+        float mean = 0;
+
+        // sqrt(2 / n_in)
+        // float std = sqrt(1.0 / kernels->getData().getCols());
+        float std = 0.01;
+
+        float args[2] = {mean, std};
+        Mat::apply(kernels->getData(), kernels->getData(), normal_sample_applier, static_cast<void*>(args));
+        // kernels->getData().fill(0);
+        bias->getData().fill(0);
+    }
+
+    void print() {
+        cout << "Conv2d_mec layer - Outputs:\n";
+        output->getData().print();
+        cout << "Conv2d_mec layer - Kernels:\n";
+        kernels->getData().print();
+        cout << "Conv2d_mec layer - Bias:\n";
+        bias->getData().print();
+    }
+
+    void load_kernels_raw(float* data, int data_size) {
+        if (data_size != kernels->getData().getSize()) {
+            throw std::invalid_argument("Error: Conv2d_mec::load_kernels_raw - data_size != kernels->getData().getSize()");
+            return;
+        }
+        std::memcpy(kernels->getData().getData(), data, data_size * sizeof(float));
+    }
+
+    void load_biases_raw(float* data, int data_size) {
+        if (data_size != bias->getData().getSize()) {
+            throw std::invalid_argument("Error: Conv2d_mec::load_kernels_raw - data_size != kernels->getData().getSize()");
+            return;
+        }
+        std::memcpy(bias->getData().getData(), data, data_size * sizeof(float));
+    }
+
+    NodePtr get_mec_lowered() {
+        return mec_lowered;
+    }
+
+    NodePtr get_conv_hnwc() {
+        return conv_hnwc;
+    }
+
+    private:
+
+    int n, h, w, c_i; // c_i = input channels
+    int c_o; // output channels
+    int k_h, k_w;
+    int s_h, s_w;
+    int p_h, p_w;
+    int im_padded_h, im_padded_w;
+    int out_h, out_w;
+
+    NodePtr inputs_reshaped;
+    NodePtr mec_lowered;
+    NodePtr kernels;
+    NodePtr conv_hnwc;
+    NodePtr conv_reshaped_for_bias;
+    NodePtr bias;
+    NodePtr conv_plus_bias;
+};
+
+class Maxpool_hnwc_to_nhwc : public Layer {
+    public:
+
+    Maxpool_hnwc_to_nhwc(int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w) :
+    n(n), h(h), w(w), c(c), k_h(k_h), k_w(k_w), s_h(s_h), s_w(s_w) {
+        out_h = (h - k_h) / s_h + 1;
+        out_w = (w - k_w) / s_w + 1;
+
+        samples_along_cols = false;
+    }
+
+    void construct_forward(LayerPtr prev_layer) override {
+
+        if (prev_layer->get_samples_along_cols() == true) {
+            throw std::invalid_argument("Error: inputs must be along rows, not columns");
+            return;
+        }
+
+        NodePtr inputs = prev_layer->get_output();
+
+        n = inputs->getData().getCols() / (w * c);
+
+        maxpool = Node::maxpool_hnwc_to_nhwc(inputs, n, h, w, c, k_h, k_w, s_h, s_w);
+
+        output = Node::reshape(maxpool, n, -1);
+    }
+
+    void update(float lr, float mini_batch_size) override {}
+
+    void print() {
+        cout << "Maxpool_hnwc_to_nhwc layer - Maxpool:\n";
+        maxpool->getData().print();
+        cout << "Maxpool_hnwc_to_nhwc layer - Outputs:\n";
+        output->getData().print();
+    }
+
+    private:
+
+    int n, h, w, c;
+    int k_h, k_w;
+    int s_h, s_w;
+    int out_h, out_w;
+
+    NodePtr maxpool;
 };
 
 // Inverse dropout (neuron scaling is applied during training, not during inference)

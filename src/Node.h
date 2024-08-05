@@ -1,6 +1,8 @@
 #ifndef NODE_H
 #define NODE_H
 
+#define LOG_OPERATIONS 0
+
 #include <deque>
 #include <iostream>
 #include <stdexcept>
@@ -27,6 +29,9 @@ class RSSNode;
 class TransposeNode;
 class Im2rowNode;
 class ReshapeNode;
+class MecLowerNode;
+class MecConvNode;
+class Maxpool_hnwc_to_nhwc_Node;
 
 using namespace std;
 using NodePtr = std::shared_ptr<Node>;
@@ -41,6 +46,13 @@ class Node : public std::enable_shared_from_this<Node> {
         loadData(toLoad);
     }
 
+    void print_data() {
+        cout << "Name: " << typeid(*this).name() << endl;
+        // data.print_ascii_greyscale();
+        data.print();
+        cout << endl;
+    }
+
     virtual ~Node() = default;
 
     virtual void backprop() {
@@ -51,10 +63,16 @@ class Node : public std::enable_shared_from_this<Node> {
         throw domain_error("Cannot backpropagate on a non-scalar matrix.");
     };
 
-    virtual void compute() {};
+    virtual void compute() {
+        #if LOG_OPERATIONS
+        std::cout << "Node compute" << std::endl;
+        #endif
+    };
 
     virtual void back() {
-        // cout << "NODE BACK\n"; 
+        #if LOG_OPERATIONS
+        std::cout << "Node back. Rows: " << data.getRows() << ", Cols: " << data.getCols() << std::endl; 
+        #endif
     };
 
     virtual Mat& getData() {
@@ -74,7 +92,9 @@ class Node : public std::enable_shared_from_this<Node> {
     }
 
     virtual void topo_sort(deque<NodePtr>& sorted_nodes) {
-        // cout << "NODE TOPO\n";
+        #if LOG_OPERATIONS
+        std::cout << "Node topo_sort" << std::endl;
+        #endif
         if (permMarker) return;
         permMarker = true;
         sorted_nodes.push_front(shared_from_this());
@@ -124,12 +144,31 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr im2row(NodePtr a, int n, int h, int w, int c,
         int k_h, int k_w, int s_h, int s_w, int p_h, int p_w, bool requires_grad = true);
     static NodePtr reshape(NodePtr a, int reshaped_rows, int reshaped_cols, bool requires_grad = true);
+    static NodePtr mec_lower(NodePtr a, int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w, int p_h, int p_w, bool requires_grad = true);
+    static NodePtr mec_conv_mm(NodePtr lowered, NodePtr kernels, int n, int h, int w, int c,
+                int k_h, int k_w, int s_h, int s_w, bool requires_grad = true);
+    static NodePtr maxpool_hnwc_to_nhwc(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, bool requires_grad = true);
 
     static void forwardPass(deque<NodePtr>& sorted_nodes) {
+        // std::cout << "NODES IN TOTAL: " << sorted_nodes.size() << std::endl;
+        // // sorted_nodes[15]->print_data();
+        // int i = 0;
         for (auto it = sorted_nodes.rbegin(); it != sorted_nodes.rend(); ++it) {
             NodePtr node = *it;
+            // std::cout << "COMPUTING NODE " << i << std::endl;
+            // if (i == 15) {
+            //     std::cout << "PRINTING NODE 15 BEFORE COMPUTE" << std::endl;
+            //     node->print_data();
+            // }
             if (!node->get_enabled()) return;
             node->compute();
+            // if (i == 15) {
+            //     std::cout << "PRINTING NODE 15 AFTER COMPUTE" << std::endl;
+            //     node->print_data();
+            //     exit(0);
+            // }
+            // std::cout << "NODE " << i++ << " COMPUTED" << std::endl;
         }
     }
 
@@ -165,7 +204,9 @@ class UnaryNode : public Node {
     UnaryNode(NodePtr a, int rows, int cols, bool requires_grad) : Node(rows, cols, requires_grad), a(a) {}
 
     void topo_sort(deque<NodePtr>& sorted_nodes) override {
-        // cout << "UNARY TOPO\n";
+        #if LOG_OPERATIONS
+        std::cout << "UnaryNode topo_sort" << std::endl;
+        #endif
         if (permMarker) return;
         tempMarker = true;
         a->topo_sort(sorted_nodes);
@@ -187,7 +228,9 @@ class BinaryNode : public Node {
     BinaryNode(NodePtr a, NodePtr b, int rows, int cols, bool requires_grad) : Node(rows, cols, requires_grad), a(a), b(b) {}
 
     void topo_sort(deque<NodePtr>& sorted_nodes) override {
-        // cout << "BINARY TOPO\n";
+        #if LOG_OPERATIONS
+        std::cout << "BinaryNode topo_sort" << std::endl;
+        #endif
         if (permMarker) return;
         tempMarker = true;
         a->topo_sort(sorted_nodes);
@@ -206,10 +249,16 @@ class SumNode : public UnaryNode {
     SumNode(NodePtr a, bool requires_grad) : UnaryNode(a, 1, 1, requires_grad) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "SumNode compute" << std::endl;
+        #endif
         data.fill(a->getData().elementsSum());
     }
 
     void backprop() override {
+        #if LOG_OPERATIONS
+        std::cout << "SumNode backprop" << std::endl;
+        #endif
         deque<NodePtr> sorted_nodes;
         topo_sort(sorted_nodes);
 
@@ -219,12 +268,17 @@ class SumNode : public UnaryNode {
     };
 
     void backprop(deque<NodePtr> sorted_nodes) override {
+        #if LOG_OPERATIONS
+        std::cout << "SumNode backprop with sorted nodes" << std::endl;
+        #endif
         grad.fill(1);
         for (NodePtr node : sorted_nodes) node->back();
     };
 
     void back() override {
-        // cout << "SUM BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "SumNode back" << std::endl;
+        #endif
         if (a->get_requires_grad())
             a->getGrad().fill(1);
     }
@@ -241,11 +295,16 @@ class ActivationNode : public UnaryNode {
     }
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "ActivationNode compute" << std::endl;
+        #endif
         Mat::apply(data, a->getData(), act);
     }
 
     virtual void back() override {
-        // cout << "GENERIC ACTIVATION FUNC BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "ActivationNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::apply(prime, a->getData(), act_derivative);
             Mat::hadamardProduct(prime, prime, grad);
@@ -265,7 +324,9 @@ class SigmoidNode : public ActivationNode {
         ActivationNode(a, activation_functions::sigmoid, activation_functions::sigmoid_derivative, requires_grad) {}
 
     void back() override {
-        // cout << "SIGMOID BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "SigmoidNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::apply(prime, data, activation_functions::sigmoid_derivative_with_sig);
             Mat::hadamardProduct(prime, prime, grad);
@@ -280,7 +341,9 @@ class TanhNode : public ActivationNode {
         ActivationNode(a, activation_functions::tanh, activation_functions::tanh_derivative, requires_grad) {}
 
     void back() override {
-        // cout << "TANH BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "TanhNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::apply(prime, data, activation_functions::tanh_derivative_with_tanh);
             Mat::hadamardProduct(prime, prime, grad);
@@ -296,11 +359,16 @@ class PowNode : public UnaryNode {
         : UnaryNode(a, a->getRows(), a->getCols(), requires_grad), pow(pow) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "PowNode compute" << std::endl;
+        #endif
         Mat::pow(data, a->getData(), pow);
     }
 
     void back() override {
-        // cout << "POW BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "PowNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::plus(a->getGrad(), a->getGrad(), grad * Mat::pow(Mat::scale(a->getData(), pow), pow - 1));
         }
@@ -316,11 +384,16 @@ class PlusNode : public BinaryNode {
         : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "PlusNode compute" << std::endl;
+        #endif
         Mat::plus(data, a->getData(), b->getData());
     }
 
     void back() override {
-        // cout << "PLUS BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "PlusNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::plus(a->getGrad(), a->getGrad(), grad);
         }
@@ -336,11 +409,16 @@ class MatPlusVecNode : public BinaryNode {
         : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "MatPlusVecNode compute" << std::endl;
+        #endif
         Mat::mat_plus_vec(data, a->getData(), b->getData());
     }
 
     void back() override {
-        // cout << "PLUS BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "MatPlusVecNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::plus(a->getGrad(), a->getGrad(), grad);
         }
@@ -356,21 +434,19 @@ class MatPlusRowVecNode : public BinaryNode {
         : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
-
         #if LOG_OPERATIONS
-
-        std::cout << "mat_plus_row_veccing" << std::endl;
-
+        std::cout << "MatPlusRowVecNode compute" << std::endl;
         std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
         std::cout << "b: " << b->getData().getRows() << "x" << b->getData().getCols() << std::endl << std::endl;
-
         #endif
 
         Mat::mat_plus_row_vec(data, a->getData(), b->getData());
     }
 
     void back() override {
-        // cout << "PLUS BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "MatPlusRowVecNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::plus(a->getGrad(), a->getGrad(), grad);
         }
@@ -386,11 +462,16 @@ class MinusNode : public BinaryNode {
         : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "MinusNode compute" << std::endl;
+        #endif
         Mat::minus(data, a->getData(), b->getData());
     }
 
     void back() override {
-        // cout << "MINUS BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "MinusNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::plus(a->getGrad(), a->getGrad(), grad);
         }
@@ -406,15 +487,16 @@ class MatMulNode : public BinaryNode {
         : BinaryNode(a, b, a->getRows(), b->getCols(), requires_grad) {}
 
     void compute() override {
-        // if (b->getRows() == 100) {
-        //     b->getData().print();
-        // }
-
+        #if LOG_OPERATIONS
+        std::cout << "MatMulNode compute" << std::endl;
+        #endif
         Mat::matmul(data, a->getData(), b->getData());
     }
 
     void back() override {
-        // cout << "MATMUL BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "MatMulNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             b->getData().transpose();
             Mat::plus(a->getGrad(), a->getGrad(), Mat::matmul(grad, b->getData()));
@@ -436,6 +518,9 @@ class DropoutNode : public Node {
         Node(rows, cols, requires_grad), p(dropout_rate) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "DropoutNode compute" << std::endl;
+        #endif
         if (p == 1) {
             throw invalid_argument("Cannot apply dropout with rate 1.");
         }
@@ -447,7 +532,9 @@ class DropoutNode : public Node {
     }
 
     void back() {
-        // cout << "DROPOUT BACK\n"; 
+        #if LOG_OPERATIONS
+        std::cout << "DropoutNode back" << std::endl;
+        #endif
     };
         
     private:
@@ -461,15 +548,16 @@ class HadamardProductNode : public BinaryNode {
         : BinaryNode(a, b, a->getRows(), a->getCols(), requires_grad) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "HadamardProductNode compute" << std::endl;
+        #endif
         Mat::hadamardProduct(data, a->getData(), b->getData());
-
-        // cout << "----------------";
-        // data.print();
-        // cout << "----------------\n\n\n";
     }
 
     void back() override {
-        // cout << "HADAMARD BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "HadamardProductNode back" << std::endl;
+        #endif
         if (a->get_requires_grad())
             Mat::hadamardProduct_keep_res(a->getGrad(), grad, b->getData(), 1);
 
@@ -489,6 +577,9 @@ class RSSNode : public BinaryNode {
         pow(y->getRows(), y->getCols()) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "RSSNode compute" << std::endl;
+        #endif
         // b is the predicted value, a is the true value
         if (!enabled) return;
         Mat::minus(difference, b->getData(), a->getData());
@@ -497,9 +588,10 @@ class RSSNode : public BinaryNode {
     }
 
     void back() override {
+        #if LOG_OPERATIONS
+        std::cout << "RSSNode back" << std::endl;
+        #endif
         // This nodes assumes it's the last in the computational graph
-
-        // cout << "RSS BACK\n";
 
         // b is the predicted value, a is the true value    
         if (!enabled)
@@ -535,6 +627,9 @@ class CCENode : public BinaryNode {
         log_predictions(y->getRows(), y->getCols()) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "CCENode compute" << std::endl;
+        #endif
         if (!enabled) return;
 
         // Apply softmax to logits to get predictions
@@ -549,6 +644,9 @@ class CCENode : public BinaryNode {
     }
 
     void back() override {
+        #if LOG_OPERATIONS
+        std::cout << "CCENode back" << std::endl;
+        #endif
         // b is the predicted value, a is the true value    
         if (!enabled && b->get_requires_grad())
             Mat::softmax(predictions, b->getData());
@@ -588,6 +686,9 @@ class BCENode : public BinaryNode {
         predictions(y->getRows(), y->getCols()) {}
 
     void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "BCENode compute" << std::endl;
+        #endif
         // b is the predicted value, a is the true value
         if (!enabled) return;
 
@@ -619,9 +720,10 @@ class BCENode : public BinaryNode {
     }
 
     void back() override {
+        #if LOG_OPERATIONS
+        std::cout << "BCENode back" << std::endl;
+        #endif
         // This nodes assumes it's the last in the computational graph
-
-        // cout << "BCE BACK\n";
 
         // b is the predicted value, a is the true value    
         if (!enabled && b->get_requires_grad())
@@ -684,20 +786,20 @@ class ReshapeNode : public UnaryNode {
             if (reshaped_rows <= 0 && reshaped_cols <= 0) {
                 throw invalid_argument("At least one of the reshaped dimensions must be positive.");
             }
+
+            data.view(a->getData());
+            grad.view(a->getGrad());
         }
 
     void compute() override {
-
         #if LOG_OPERATIONS
-
-        std::cout << "reshaping (view)" << std::endl;
+        std::cout << "ReshapeNode compute" << std::endl;
         std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
         std::cout << "into " << data.getRows() << "x" << data.getCols() << std::endl << std::endl;
-
         #endif
 
-        data.view(a->getData());
-        grad.view(a->getGrad());
+        // data.view(a->getData());
+        // grad.view(a->getGrad());
     }
 
     bool get_requires_grad() override {
@@ -753,21 +855,19 @@ class Im2rowNode : public UnaryNode {
     
     
     void compute() override {
-
         #if LOG_OPERATIONS
-
-        std::cout << "im2rowing" << std::endl;
-
+        std::cout << "Im2rowNode compute" << std::endl;
         std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
         std::cout << "out: " << data.getRows() << "x" << data.getCols() << std::endl << std::endl << std::endl;
-
         #endif
 
         Mat::im2row_nhwc(data, a->getData(), n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w);
     }
     
     void back() override {
-        // cout << "IM2ROW BACK\n";
+        #if LOG_OPERATIONS
+        std::cout << "Im2rowNode back" << std::endl;
+        #endif
         if (a->get_requires_grad()) {
             Mat::row2img_nhwc_additive(a->getGrad(), grad, n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w);
         }
@@ -780,6 +880,206 @@ class Im2rowNode : public UnaryNode {
     int s_h, s_w;
     int p_h, p_w;
     int lowered_h, lowered_w;
+};
+
+class MecLowerNode : public UnaryNode {
+    public:
+
+    MecLowerNode(NodePtr a, 
+        int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w, int p_h, int p_w, bool requires_grad
+    )
+    : UnaryNode(
+        a,
+        calculate_lower_h(n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w),
+        calculate_lower_w(n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w),
+        requires_grad
+        // ((h + 2 * p_h - k_h) / s_h + 1) * ((w + 2 * p_w - k_w) / s_w + 1) * n, 
+        // k_h * k_w * c, requires_grad
+    ) {    
+        this->n = n;
+        this->h = h;
+        this->w = w;
+        this->c = c;
+        this->k_h = k_h;
+        this->k_w = k_w;
+        this->s_h = s_h;
+        this->s_w = s_w;
+        this->p_h = p_h;
+        this->p_w = p_w;
+
+        int im_padded_h = h + 2 * p_h;
+        int im_padded_w = w + 2 * p_w;
+
+        // int out_h = (im_padded_h - k_h) / s_h + 1;
+        int out_w = (im_padded_w - k_w) / s_w + 1;
+
+        this->lowered_h = out_w * n;
+        this->lowered_w = im_padded_h * k_w * c;
+    }
+    
+    
+    void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "MecLowerNode compute" << std::endl;
+        std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
+        std::cout << "out: " << data.getRows() << "x" << data.getCols() << std::endl << std::endl;
+        #endif
+
+        Mat::mec_lower(data, a->getData(), n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w);
+    }
+    
+    void back() override {
+        #if LOG_OPERATIONS
+        std::cout << "MecLowerNode back" << std::endl;
+        #endif
+        if (a->get_requires_grad()) {
+            Mat::mec_lower_to_img_additive(a->getGrad(), grad, n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w);
+        }
+    }
+    
+    private:
+
+    int n, h, w, c;
+    int k_h, k_w;
+    int s_h, s_w;
+    int p_h, p_w;
+    int lowered_h, lowered_w;
+
+    static int calculate_lower_h(int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+        
+        int im_padded_h = h + 2 * p_h;
+        int im_padded_w = w + 2 * p_w;
+
+        // int out_h = (im_padded_h - k_h) / s_h + 1;
+        int out_w = (im_padded_w - k_w) / s_w + 1;
+
+        int _lower_h = out_w * n;
+        return _lower_h;
+    }
+
+    static int calculate_lower_w(int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
+        
+        int im_padded_h = h + 2 * p_h;
+        int im_padded_w = w + 2 * p_w;
+
+        // int out_h = (im_padded_h - k_h) / s_h + 1;
+        // int out_w = (im_padded_w - k_w) / s_w + 1;
+
+        int _lower_w = im_padded_h * k_w * c;
+        return _lower_w;
+    }
+};
+
+class MecConvNode : public BinaryNode {
+public:
+    MecConvNode(NodePtr lowered, NodePtr kernels, 
+                int n, int h, int w, int c,
+                int k_h, int k_w, int s_h, int s_w, bool requires_grad)
+    : BinaryNode(
+        lowered, kernels,
+        ((h - k_h) / s_h + 1),
+        n * ((w - k_w) / s_w + 1) * kernels->getCols(), requires_grad
+    ) {
+        this->n = n;
+        this->h = h;
+        this->w = w;
+        this->c = c;
+        this->k_h = k_h;
+        this->k_w = k_w;
+        this->s_h = s_h;
+        this->s_w = s_w;
+    }
+
+    void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "MecConvNode compute" << std::endl;
+        std::cout << "lowered: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
+        std::cout << "kernels: " << b->getData().getRows() << "x" << b->getData().getCols() << std::endl;
+        std::cout << "out: " << data.getRows() << "x" << data.getCols() << std::endl << std::endl;
+        #endif
+
+        Mat::mec_conv(data, a->getData(), b->getData(), n, h, w, c, k_h, k_w, s_h, s_w);
+    }
+
+    void back() override {
+        #if LOG_OPERATIONS
+        std::cout << "MecConvNode back" << std::endl;
+        #endif
+        if (a->get_requires_grad()) {
+            Mat::mec_back_into_lowered(a->getGrad(), grad, b->getData(), n, h, w, c, k_h, k_w, s_h, s_w);
+        }
+    }
+
+private:
+    int n, h, w, c;
+    int k_h, k_w;
+    int s_h, s_w;
+};
+
+class Maxpool_hnwc_to_nhwc_Node : public UnaryNode {
+    public:
+
+    Maxpool_hnwc_to_nhwc_Node(NodePtr a, 
+        int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w, bool requires_grad
+    )
+    : UnaryNode(
+        a,
+        ((h - k_h) / s_h + 1) * n, 
+        ((w - k_w) / s_w + 1) * c, requires_grad
+    ) {    
+        this->n = n;
+        this->h = h;
+        this->w = w;
+        this->c = c;
+        this->k_h = k_h;
+        this->k_w = k_w;
+        this->s_h = s_h;
+        this->s_w = s_w;
+
+        this->out_h = (h - k_h) / s_h + 1;
+        this->out_w = (w - k_w) / s_w + 1;
+
+        this->indeces = new int[out_h * out_w * n * c];
+    }
+
+    ~Maxpool_hnwc_to_nhwc_Node() {
+        delete[] indeces;
+    }
+    
+    void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "Maxpool_hnwc_to_nhwc_Node compute" << std::endl;
+        std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
+        std::cout << "out: " << data.getRows() << "x" << data.getCols() << std::endl << std::endl;
+        #endif
+
+        Mat::maxpool_hnwc_to_nhwc(data, a->getData(), n, h, w, c, k_h, k_w, s_h, s_w, indeces);
+    }
+    
+    void back() override {
+        #if LOG_OPERATIONS
+        std::cout << "Maxpool_hnwc_to_nhwc_Node back" << std::endl;
+        #endif
+        if (a->get_requires_grad()) {
+            float* a_grad_data = a->getGrad().getData();
+            float* grad_data = grad.getData();
+
+            for (int i = 0; i < out_h * out_w * n * c; i++) {
+                a_grad_data[indeces[i]] += grad_data[i];
+            }
+        }
+    }
+    
+    private:
+    int* indeces;
+    int n, h, w, c;
+    int k_h, k_w;
+    int s_h, s_w;
+    int out_h, out_w;
 };
 
 NodePtr Node::operator+(NodePtr other) { return std::make_shared<PlusNode>(shared_from_this(), other, true); }
@@ -821,6 +1121,20 @@ NodePtr Node::im2row(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, in
 
 NodePtr Node::reshape(NodePtr a, int reshaped_rows, int reshaped_cols, bool requires_grad) {
     return std::make_shared<ReshapeNode>(a, reshaped_rows, reshaped_cols, requires_grad);
+}
+
+NodePtr Node::mec_lower(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w,
+        int p_h, int p_w, bool requires_grad) {
+    return std::make_shared<MecLowerNode>(a, n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w, requires_grad);
+}
+
+NodePtr Node::mec_conv_mm(NodePtr lowered, NodePtr kernels, int n, int h, int w, int c,
+                int k_h, int k_w, int s_h, int s_w, bool requires_grad) {
+    return std::make_shared<MecConvNode>(lowered, kernels, n, h, w, c, k_h, k_w, s_h, s_w, requires_grad);
+}
+
+NodePtr Node::maxpool_hnwc_to_nhwc(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, bool requires_grad) {
+    return std::make_shared<Maxpool_hnwc_to_nhwc_Node>(a, n, h, w, c, k_h, k_w, s_h, s_w, requires_grad);
 }
 
 #endif

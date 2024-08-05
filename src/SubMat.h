@@ -7,7 +7,7 @@
 
 class SubMat {
 public:
-    SubMat(const Mat& matrix, int start_row, int start_col, int num_rows, int num_cols)
+    SubMat(Mat& matrix, int start_row, int start_col, int num_rows, int num_cols)
         : original_matrix(matrix), start_row(start_row), start_col(start_col), num_rows(num_rows), num_cols(num_cols) {
         
         // std::cout << "SubMat: " << start_row << " " << start_col << " " << num_rows << " " << num_cols << std::endl;
@@ -25,6 +25,13 @@ public:
             throw std::out_of_range("SubMat: Index out of range");
         }
         return original_matrix.getElement(start_row + row, start_col + col);
+    }
+
+    void put_ignore_overflow(float value, int row, int col) {
+        if (row < 0 || row >= num_rows || col < 0 || col >= num_cols) {
+            return;
+        }
+        original_matrix.put(value, start_row + row, start_col + col);
     }
 
     float get_element_fallback(int row, int col, float fallback) const {
@@ -46,7 +53,7 @@ public:
     int get_cols() const { return num_cols; }
 
 private:
-    const Mat& original_matrix;
+    Mat& original_matrix;
     int start_row;
     int start_col;
     int num_rows;
