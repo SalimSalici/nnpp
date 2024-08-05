@@ -82,6 +82,7 @@ class Node : public std::enable_shared_from_this<Node> {
     Mat& getGrad() { return grad; }
 
     void zero_grad() {
+        if (!requires_grad) return;
         grad.zero();
     }
 
@@ -151,24 +152,10 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr maxpool_hnwc_to_nhwc(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, bool requires_grad = true);
 
     static void forwardPass(deque<NodePtr>& sorted_nodes) {
-        // std::cout << "NODES IN TOTAL: " << sorted_nodes.size() << std::endl;
-        // // sorted_nodes[15]->print_data();
-        // int i = 0;
         for (auto it = sorted_nodes.rbegin(); it != sorted_nodes.rend(); ++it) {
             NodePtr node = *it;
-            // std::cout << "COMPUTING NODE " << i << std::endl;
-            // if (i == 15) {
-            //     std::cout << "PRINTING NODE 15 BEFORE COMPUTE" << std::endl;
-            //     node->print_data();
-            // }
             if (!node->get_enabled()) return;
             node->compute();
-            // if (i == 15) {
-            //     std::cout << "PRINTING NODE 15 AFTER COMPUTE" << std::endl;
-            //     node->print_data();
-            //     exit(0);
-            // }
-            // std::cout << "NODE " << i++ << " COMPUTED" << std::endl;
         }
     }
 

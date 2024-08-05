@@ -926,6 +926,16 @@ void Mat::view(const Mat& other) {
     }
 }
 
+void Mat::view(float* data) {
+    if (is_view) {
+        this->data = data;
+    } else {
+        delete[] this->data;
+        this->data = data;
+        is_view = true;
+    }
+}
+
 void Mat::mec_lower(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
     int im_padded_h = h + 2 * p_h;
     int im_padded_w = w + 2 * p_w;
@@ -940,44 +950,46 @@ void Mat::mec_lower(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, i
         throw std::invalid_argument("Matrix 'im' dimensions mismatch for mec_lower.");
 
     float *res_data = result.getData();
-    // float *im_data = im.getData();
+    float *im_data = im.getData();
 
-    for (int nn = 0; nn < n; nn++) {
-        SubMat cur_im(im, nn * h, 0, h, w * c);
-        // float* cur_im_data = im_data + nn * h * w * c;
-        for (int ww = 0; ww < o_w; ww++) {
-            int col_idx = ww * s_w * c - p_w;
-            float* cur_res_data = res_data + (nn * im_padded_h * k_w * c * o_w + ww * im_padded_h * k_w * c);
-            for (int hh = -p_h; hh < h + p_h; hh++) {
-                for (int kw = 0; kw < k_w; kw++) {
-                    int im_w = col_idx + kw * c;
-                    for (int cc = 0; cc < c; cc++) {
-                        float val = cur_im.get_element_fallback(hh, im_w + cc, 0.0f);
-                        *cur_res_data = val;
-                        cur_res_data++;
+    if (p_h == 0 && p_w == 0) {
+
+        // std::cout << "mec_lower: Padding is 0" << std::endl;
+        int img_size = h * w * c;
+
+        for (int nn = 0; nn < n; nn++) {
+            float* cur_im_data = im_data + nn * img_size;
+            for (int ww = 0; ww < o_w; ww++) {
+                int col_idx = ww * s_w * c;
+                for (int hh = 0; hh < h; hh++) {
+                    std::memcpy(res_data, cur_im_data + col_idx + hh * w * c, k_w * c * sizeof(float));
+                    res_data += k_w * c;
+                }
+            }
+        }
+    } else {
+
+        // std::cout << "mec_lower: Padding is NOOOT 0" << std::endl;
+
+        for (int nn = 0; nn < n; nn++) {
+            SubMat cur_im(im, nn * h, 0, h, w * c);
+            // float* cur_im_data = im_data + nn * h * w * c;
+            for (int ww = 0; ww < o_w; ww++) {
+                int col_idx = ww * s_w * c - p_w;
+                float* cur_res_data = res_data + (nn * im_padded_h * k_w * c * o_w + ww * im_padded_h * k_w * c);
+                for (int hh = -p_h; hh < h + p_h; hh++) {
+                    for (int kw = 0; kw < k_w; kw++) {
+                        int im_w = col_idx + kw * c;
+                        for (int cc = 0; cc < c; cc++) {
+                            float val = cur_im.get_element_fallback(hh, im_w + cc, 0.0f);
+                            *cur_res_data = val;
+                            cur_res_data++;
+                        }
                     }
                 }
             }
         }
     }
-
-    // TODO: If padding is 0, this could be an optimization (from old nn project):
-    // for (int n = 0; n < N; n++) {
-        
-    //     float* cur_input_start;
-    //     if (inputs_sep == NULL)
-    //         cur_input_start = inputs_data + n * H * W * C;
-    //     else
-    //         cur_input_start = inputs_sep[n]->data;
-
-    //     for (int w_o = 0; w_o < w_out; w_o++) {
-    //         int w_s = w_o * C * stride;
-    //         for (int h_i = 0; h_i < H; h_i++) {
-    //             memcpy(cur_lowered_data, cur_input_start + w_s + h_i * W * C, sizeof(float) * kw * C);
-    //             cur_lowered_data += kw * C;
-    //         }
-    //     }
-    // }
 }
 
 void Mat::mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
@@ -993,23 +1005,39 @@ void Mat::mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, 
     if (im.getSize() != n * h * w * c)
         throw std::invalid_argument("Matrix 'im' dimensions mismatch for mec_lower.");
 
-    float *res_data = lowered.getData();
-    // float *im_data = im.getData();
+    float* lowered_data = lowered.getData();
+    float* im_data = im.getData();
 
-    for (int nn = 0; nn < n; nn++) {
-        SubMat cur_im(im, nn * h, 0, h, w * c);
-        // float* cur_im_data = im_data + nn * h * w * c;
-        for (int ww = 0; ww < o_w; ww++) {
-            int col_idx = ww * s_w * c - p_w;
-            float* cur_res_data = res_data + (nn * im_padded_h * k_w * c * o_w + ww * im_padded_h * k_w * c);
-            for (int hh = -p_h; hh < h + p_h; hh++) {
-                for (int kw = 0; kw < k_w; kw++) {
-                    int im_w = col_idx + kw * c;
-                    for (int cc = 0; cc < c; cc++) {
-                        float val = cur_im.get_element_fallback(hh, im_w + cc, 0.0f);
-                        cur_im.put_ignore_overflow(val + *cur_res_data, hh, im_w + cc);
-                        // cur_im.put_ignore_overflow(*cur_res_data, hh, im_w + cc);
-                        cur_res_data++;
+    if (p_h == 0 && p_w == 0) {
+        for (int nn = 0; nn < n; nn++) {
+            float* cur_im_data = im_data + nn * h * w * c;
+            for (int ww = 0; ww < o_w; ww++) {
+                int col_idx = ww * s_w * c;
+                for (int hh = 0; hh < h; hh++) {
+                    for (int kw = 0; kw < k_w * c; kw++) {
+                        cur_im_data[col_idx + hh * w * c + kw] += *lowered_data;
+                        lowered_data++;
+                    }
+                }
+                    
+            }
+        }
+    } else {
+        for (int nn = 0; nn < n; nn++) {
+            SubMat cur_im(im, nn * h, 0, h, w * c);
+            // float* cur_im_data = im_data + nn * h * w * c;
+            for (int ww = 0; ww < o_w; ww++) {
+                int col_idx = ww * s_w * c - p_w;
+                float* cur_lowered_data = lowered_data + (nn * im_padded_h * k_w * c * o_w + ww * im_padded_h * k_w * c);
+                for (int hh = -p_h; hh < h + p_h; hh++) {
+                    for (int kw = 0; kw < k_w; kw++) {
+                        int im_w = col_idx + kw * c;
+                        for (int cc = 0; cc < c; cc++) {
+                            float val = cur_im.get_element_fallback(hh, im_w + cc, 0.0f);
+                            cur_im.put_ignore_overflow(val + *cur_lowered_data, hh, im_w + cc);
+                            // cur_im.put_ignore_overflow(*cur_lowered_data, hh, im_w + cc);
+                            cur_lowered_data++;
+                        }
                     }
                 }
             }
@@ -1018,8 +1046,8 @@ void Mat::mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, 
 }
 
 void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int* indeces) {
-    int o_h = (h - k_h) / s_h + 1;
-    int o_w = (w - k_w) / s_w + 1;
+    const int o_h = (h - k_h) / s_h + 1;
+    const int o_w = (w - k_w) / s_w + 1;
 
     if (result.getSize() != n * o_h * o_w * c)
         throw std::invalid_argument("Matrix 'result' dimensions mismatch for maxpool_hnwc.");
@@ -1027,12 +1055,12 @@ void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c,
     if (im.getSize() != n * h * w * c)
         throw std::invalid_argument("Matrix 'im' dimensions mismatch for maxpool_hnwc.");
 
-    float *res_data = result.getData();
-    float *im_data = im.getData();
+    float* const res_data = result.getData();
+    const float* im_data = im.getData();
 
-    int im_down = im.getDown();
+    const int im_down = im.getDown();
 
-    float minus_inf = -std::numeric_limits<float>::infinity();
+    const float minus_inf = -std::numeric_limits<float>::infinity();
 
     for (int nn = 0; nn < n; nn++) {
         for (int hh = 0; hh < o_h; hh++) {
@@ -1064,6 +1092,8 @@ void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c,
             }
         }
     }
+
+    return;
 }
 
 void Mat::mec_conv(Mat& result, Mat& lowered, Mat& kernels, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w) {
