@@ -59,19 +59,19 @@ class Layer {
         cout << "Generic layer";
     }
 
-    void set_is_inference(bool is_inference) {
+    virtual void set_is_inference(bool is_inference) {
         this->is_inference = is_inference;
     }
 
-    bool get_samples_along_cols() {
+    virtual bool get_samples_along_cols() {
         return samples_along_cols;
     }
 
-    void freeze_params() {
+    virtual void freeze_params() {
         params_freezed = true;
     }
 
-    void unfreeze_params() {
+    virtual void unfreeze_params() {
         params_freezed = false;
     }
 
@@ -86,7 +86,7 @@ class InputLayer : public Layer {
     public:
 
     InputLayer(int size, int mini_batch_size, bool separated = false, bool requires_grad = false) {
-        inputs = make_shared<Node>(mini_batch_size, size, requires_grad);
+        inputs = make_shared<Node>(mini_batch_size, size, false);
         output = inputs;
         samples_along_cols = false;
         this->separated = separated;
@@ -106,6 +106,8 @@ class InputLayer : public Layer {
 
         // float* data = output->getData().getData();
         float* data = inputs->getData().getData();
+
+        // std::cout << "Separated: " << separated << std::endl;
 
         if (!separated) {
             for (int i = 0, j = 0; j < mini_batch_size; i += size, j++)
@@ -169,7 +171,7 @@ class Linear : public Layer {
         NodePtr inputs = prev_layer->get_output();
 
         if (prev_layer->get_samples_along_cols() == false) {
-            inputs = Node::transpose(inputs, requires_grad);
+            inputs = Node::transpose(inputs, inputs->get_requires_grad());
         }
 
         Wx = Node::matmul(weights, inputs, requires_grad);

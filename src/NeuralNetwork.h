@@ -36,7 +36,6 @@ class NeuralNetwork {
 
         input_layer = make_shared<InputLayer>(input_size, mini_batch_size, inputs_separated);
         setup_computatioal_graph();
-        // loss = make_shared<Loss>(layers.back()->get_output()->getData().getRows(), mini_batch_size);
         loss = make_loss(loss_type, layers.back()->get_output()->getData().getRows(), mini_batch_size);
         loss->construct_forward(layers.back()->get_output());
         loss->get_loss()->topo_sort(sorted_nodes);
@@ -90,7 +89,7 @@ class NeuralNetwork {
         std::cout << "Starting SGD." << std::endl;
 
         // Evaluation initial_eval = evaluate(test_samples, test_samples_count);
-        Evaluation initial_eval = split_evaluate(test_samples, test_samples_count, 8);
+        Evaluation initial_eval = split_evaluate(test_samples, test_samples_count, 4);
 
         std::cout << "Initial accuracy: " << initial_eval.accuracy * 100 << "%" << std::endl;
         std::cout << "Initial loss: " << initial_eval.loss << std::endl;
