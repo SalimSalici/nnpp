@@ -43,7 +43,7 @@ class Layer {
    public:
     virtual void initialize() {}
 
-    virtual void construct_forward(LayerPtr prev_layer) = 0;
+    virtual void construct_forward(LayerPtr prev_layer, bool requires_grad) = 0;
 
     virtual NodePtr get_output() {
         return output;
@@ -93,7 +93,7 @@ class InputLayer : public Layer {
         this->size = size;
     }
 
-    void construct_forward(LayerPtr prev_layer) override {}
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {}
 
     void load_train_samples(Sample* samples[], int mini_batch_size) {
 
@@ -164,16 +164,16 @@ class Linear : public Layer {
         bias = make_shared<Node>(output_size, 1, true);
     }
 
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
 
         NodePtr inputs = prev_layer->get_output();
 
         if (prev_layer->get_samples_along_cols() == false) {
-            inputs = Node::transpose(inputs);
+            inputs = Node::transpose(inputs, requires_grad);
         }
 
-        Wx = Node::matmul(weights, inputs);
-        output = Node::mat_plus_vec(Wx, bias); // optimize this (probably the compute method of the node)?
+        Wx = Node::matmul(weights, inputs, requires_grad);
+        output = Node::mat_plus_vec(Wx, bias, requires_grad); // optimize this (probably the compute method of the node)?
         x = inputs;
         // ones = std::make_unique<Mat>(inputs->getData().getCols(), 1);
         // ones->fill(1);
@@ -255,7 +255,7 @@ class Conv2d_im2row : public Layer {
     Conv2d_im2row(int n, int h, int w, int c_i, int c_o, int kernel_size, int stride, int padding)
     : Conv2d_im2row(n, h, w, c_i, c_o, kernel_size, kernel_size, stride, stride, padding, padding) {}
 
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
 
         if (prev_layer->get_samples_along_cols() == true) {
             throw std::invalid_argument("Error: inputs must be along rows, not columns");
@@ -266,16 +266,16 @@ class Conv2d_im2row : public Layer {
 
         n = inputs->getData().getRows();
 
-        inputs_reshaped = Node::reshape(inputs, n * h, w * c_i);
+        inputs_reshaped = Node::reshape(inputs, n * h, w * c_i, requires_grad);
         // inputs->getData().reshape(n * h, w * c_i);
 
         im2row_lowered = Node::im2row(inputs_reshaped, n, h, w, c_i, k_h, k_w, s_h, s_w, p_h, p_w);
-        conv = Node::matmul(im2row_lowered, kernels);
+        conv = Node::matmul(im2row_lowered, kernels, requires_grad);
 
         // conv_reshaped = Node::reshape(conv, bias_rows, conv->getData().getRows() / bias_rows);
-        conv_reshaped = Node::reshape(conv, n, -1);
+        conv_reshaped = Node::reshape(conv, n, -1, requires_grad);
 
-        mat_plus_row_vec = Node::mat_plus_row_vec(conv_reshaped, bias);
+        mat_plus_row_vec = Node::mat_plus_row_vec(conv_reshaped, bias, requires_grad);
         output = mat_plus_row_vec;
         // output = mat_plus_row_vec;
     }
@@ -346,7 +346,7 @@ class Conv2d_mec : public Layer {
     Conv2d_mec(int n, int h, int w, int c_i, int c_o, int kernel_size, int stride, int padding)
     : Conv2d_mec(n, h, w, c_i, c_o, kernel_size, kernel_size, stride, stride, padding, padding) {}
 
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
 
         if (prev_layer->get_samples_along_cols() == true) {
             throw std::invalid_argument("Error: inputs must be along rows, not columns");
@@ -376,19 +376,19 @@ class Conv2d_mec : public Layer {
 
         // mec_lowered = Node::mec_lower(inputs_reshaped, n, h, w, c_i, k_h, k_w, s_h, s_w, p_h, p_w, lowered_requires_grad);
 
-        mec_lowered = handle_inputs_to_mec_lower(prev_layer);
+        mec_lowered = handle_inputs_to_mec_lower(prev_layer, requires_grad);
 
-        conv_hnwc = Node::mec_conv_mm(mec_lowered, kernels, n, im_padded_h, im_padded_w, c_i, k_h, k_w, s_h, s_w);
+        conv_hnwc = Node::mec_conv_mm(mec_lowered, kernels, n, im_padded_h, im_padded_w, c_i, k_h, k_w, s_h, s_w, requires_grad);
 
-        conv_reshaped_for_bias = Node::reshape(conv_hnwc, -1, c_o);
+        conv_reshaped_for_bias = Node::reshape(conv_hnwc, -1, c_o, requires_grad);
 
-        conv_plus_bias = Node::mat_plus_row_vec(conv_reshaped_for_bias, bias);
+        conv_plus_bias = Node::mat_plus_row_vec(conv_reshaped_for_bias, bias, requires_grad);
         
-        output = Node::reshape(conv_plus_bias, out_h, n * out_w * c_o);
+        output = Node::reshape(conv_plus_bias, out_h, n * out_w * c_o, requires_grad);
     }
 
-    NodePtr handle_inputs_to_mec_lower(LayerPtr prev_layer) {
-        bool lowered_requires_grad = true;
+    NodePtr handle_inputs_to_mec_lower(LayerPtr prev_layer, bool requires_grad) {
+        bool lowered_requires_grad = requires_grad;
         NodePtr inputs = prev_layer->get_output();
         n = inputs->getData().getRows();
 
@@ -512,7 +512,7 @@ class Maxpool_hnwc_to_nhwc : public Layer {
         samples_along_cols = false;
     }
 
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
 
         if (prev_layer->get_samples_along_cols() == true) {
             throw std::invalid_argument("Error: inputs must be along rows, not columns");
@@ -523,9 +523,9 @@ class Maxpool_hnwc_to_nhwc : public Layer {
 
         n = inputs->getData().getCols() / (w * c);
 
-        maxpool = Node::maxpool_hnwc_to_nhwc(inputs, n, h, w, c, k_h, k_w, s_h, s_w);
+        maxpool = Node::maxpool_hnwc_to_nhwc(inputs, n, h, w, c, k_h, k_w, s_h, s_w, requires_grad);
 
-        output = Node::reshape(maxpool, n, -1);
+        output = Node::reshape(maxpool, n, -1, requires_grad);
     }
 
     void update(float lr, float mini_batch_size) override {}
@@ -553,7 +553,7 @@ class Dropout : public Layer {
     
     Dropout(float p) : p(p) {}
 
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
 
         NodePtr inputs = prev_layer->get_output();
         samples_along_cols = prev_layer->get_samples_along_cols();
@@ -564,7 +564,7 @@ class Dropout : public Layer {
         }
 
         NodePtr dropout_node = Node::dropout(inputs->getData().getRows(), inputs->getData().getCols(), p, false);
-        output = Node::hadamard_product(inputs, dropout_node);
+        output = Node::hadamard_product(inputs, dropout_node, requires_grad);
 
     }
 
@@ -579,9 +579,9 @@ class Dropout : public Layer {
 class Sigmoid : public Layer {
    public:
 
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
         NodePtr inputs = prev_layer->get_output();
-        output = Node::sigmoid(inputs);
+        output = Node::sigmoid(inputs, requires_grad);
         samples_along_cols = prev_layer->get_samples_along_cols();
     }
 
@@ -595,9 +595,9 @@ class Sigmoid : public Layer {
 class Tanh : public Layer {
    public:
 
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
         NodePtr inputs = prev_layer->get_output();
-        output = Node::tanh(inputs);
+        output = Node::tanh(inputs, requires_grad);
         samples_along_cols = prev_layer->get_samples_along_cols();
     }
 
@@ -611,9 +611,9 @@ class Tanh : public Layer {
 class ReLU : public Layer {
    public:
    
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
         NodePtr inputs = prev_layer->get_output();
-        output = Node::relu(inputs);
+        output = Node::relu(inputs, requires_grad);
         samples_along_cols = prev_layer->get_samples_along_cols();
     }
 
@@ -627,9 +627,9 @@ class ReLU : public Layer {
 class Summation : public Layer {
    public:
    
-    void construct_forward(LayerPtr prev_layer) override {
+    void construct_forward(LayerPtr prev_layer, bool requires_grad) override {
         NodePtr inputs = prev_layer->get_output();
-        output = inputs->sum();
+        output = inputs->sum(requires_grad);
         samples_along_cols = prev_layer->get_samples_along_cols();
     }
 

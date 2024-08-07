@@ -43,11 +43,11 @@ class NeuralNetwork {
     }
 
     void setup_computatioal_graph() {
-        layers[0]->construct_forward(input_layer);
+        layers[0]->construct_forward(input_layer, requires_grad);
         for (auto it = layers.begin() + 1; it != layers.end(); ++it) {
             auto& current = *it;
             auto& previous = *(it - 1);
-            current->construct_forward(previous);
+            current->construct_forward(previous, requires_grad);
         }
     }
 
@@ -87,9 +87,12 @@ class NeuralNetwork {
     void sgd(Sample* samples[], int samples_count, float lr, int epochs, int mini_batch_size,
                 Sample* test_samples[], int test_samples_count) {
 
-        Evaluation initial_eval = evaluate(test_samples, test_samples_count);
+        std::cout << "Starting SGD." << std::endl;
 
-        std::cout << "Starting SGD. Initial accuracy: " << initial_eval.accuracy * 100 << "%" << std::endl;
+        // Evaluation initial_eval = evaluate(test_samples, test_samples_count);
+        Evaluation initial_eval = split_evaluate(test_samples, test_samples_count, 8);
+
+        std::cout << "Initial accuracy: " << initial_eval.accuracy * 100 << "%" << std::endl;
         std::cout << "Initial loss: " << initial_eval.loss << std::endl;
 
         for (int epoch = 0; epoch < epochs; epoch++) {
@@ -117,7 +120,7 @@ class NeuralNetwork {
             start = std::chrono::high_resolution_clock::now();
 
             // Evaluation train_eval = evaluate(samples, samples_count);
-            Evaluation test_eval = evaluate(test_samples, test_samples_count, false);
+            Evaluation test_eval = split_evaluate(test_samples, test_samples_count, 8);
 
             end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> test_time = end - start;
@@ -185,6 +188,27 @@ class NeuralNetwork {
         return eval;
     }
 
+    Evaluation split_evaluate(Sample* samples[], int samples_count, int splits, bool disable_last_layer = false) {
+        Evaluation total_eval = {0, samples_count, 0, 0};
+        int samples_per_split = samples_count / splits;
+
+        for (int i = 0; i < splits; ++i) {
+            int start_idx = i * samples_per_split;
+            int end_idx = (i == splits - 1) ? samples_count : (i + 1) * samples_per_split;
+            int current_split_size = end_idx - start_idx;
+
+            Evaluation split_eval = evaluate(samples + start_idx, current_split_size, disable_last_layer);
+
+            total_eval.correct += split_eval.correct;
+            total_eval.loss += split_eval.loss * current_split_size;  // Weighted sum of losses
+        }
+
+        total_eval.loss /= samples_count;  // Calculate average loss
+        total_eval.accuracy = static_cast<float>(total_eval.correct) / samples_count;
+
+        return total_eval;
+    }
+
     void set_enabled_last_layer(bool enabled) {
         layers.back()->set_enabled(enabled);
     }
@@ -193,6 +217,7 @@ class NeuralNetwork {
         for (auto& layer : layers) {
             layer->set_is_inference(is_inference);
         }
+        requires_grad = !is_inference;
     }
 
     LayerPtr get_last_layer() {
@@ -243,6 +268,7 @@ class NeuralNetwork {
     vector<LayerPtr> layers; // input layer is not included
     deque<NodePtr> sorted_nodes;
     LossType loss_type = LossType::MSE;
+    bool requires_grad = true;
 };
 
 #endif

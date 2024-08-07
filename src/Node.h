@@ -7,6 +7,7 @@
 #include <iostream>
 #include <vector>
 #include <stdexcept>
+#include <typeinfo>
 
 #include "Mat.h"
 #include "activation_functions.h"
@@ -41,7 +42,7 @@ using NodePtr = std::shared_ptr<Node>;
 
 class Node : public std::enable_shared_from_this<Node> {
    public:
-    Node(int rows, int cols, bool requires_grad) : data(rows, cols), grad(rows, cols), requires_grad(requires_grad) {
+    Node(int rows, int cols, bool requires_grad) : data(rows, cols), grad(rows, cols, requires_grad), requires_grad(requires_grad) {
         // if (requires_grad)
         //     grad.zero();
     }
@@ -132,21 +133,21 @@ class Node : public std::enable_shared_from_this<Node> {
 
     NodePtr operator+(NodePtr other);
     NodePtr operator-(NodePtr other);
-    NodePtr sum();
+    NodePtr sum(bool requires_grad);
 
-    static NodePtr plus(NodePtr a, NodePtr b);
-    static NodePtr matmul(NodePtr a, NodePtr b);
-    static NodePtr activation(NodePtr a, float (*act)(float), float (*act_derivative)(float));
-    static NodePtr relu(NodePtr a);
-    static NodePtr sigmoid(NodePtr a);
-    static NodePtr tanh(NodePtr a);
-    static NodePtr pow(NodePtr a, float pow);
-    static NodePtr rss(NodePtr y, NodePtr y_hat);
-    static NodePtr mat_plus_vec(NodePtr a, NodePtr b);
-    static NodePtr mat_plus_row_vec(NodePtr a, NodePtr b);
+    static NodePtr plus(NodePtr a, NodePtr b, bool requires_grad);
+    static NodePtr matmul(NodePtr a, NodePtr b, bool requires_grad);
+    static NodePtr activation(NodePtr a, float (*act)(float), float (*act_derivative)(float), bool requires_grad);
+    static NodePtr relu(NodePtr a, bool requires_grad);
+    static NodePtr sigmoid(NodePtr a, bool requires_grad);
+    static NodePtr tanh(NodePtr a, bool requires_grad);
+    static NodePtr pow(NodePtr a, float pow, bool requires_grad);
+    static NodePtr rss(NodePtr y, NodePtr y_hat, bool requires_grad);
+    static NodePtr mat_plus_vec(NodePtr a, NodePtr b, bool requires_grad);
+    static NodePtr mat_plus_row_vec(NodePtr a, NodePtr b, bool requires_grad);
     static NodePtr dropout(int rows, int cols, float dropout_rate, bool requires_grad);
-    static NodePtr hadamard_product(NodePtr a, NodePtr b);
-    static NodePtr transpose(NodePtr a);
+    static NodePtr hadamard_product(NodePtr a, NodePtr b, bool requires_grad);
+    static NodePtr transpose(NodePtr a, bool requires_grad);
     static NodePtr im2row(NodePtr a, int n, int h, int w, int c,
         int k_h, int k_w, int s_h, int s_w, int p_h, int p_w, bool requires_grad = true);
     static NodePtr reshape(NodePtr a, int reshaped_rows, int reshaped_cols, bool requires_grad = true);
@@ -1190,39 +1191,39 @@ class Maxpool_hnwc_to_nhwc_Node : public UnaryNode {
     int out_h, out_w;
 };
 
-NodePtr Node::operator+(NodePtr other) { return std::make_shared<PlusNode>(shared_from_this(), other, true); }
+NodePtr Node::operator+(NodePtr other) { return std::make_shared<PlusNode>(shared_from_this(), other, requires_grad); }
 
-NodePtr Node::plus(NodePtr a, NodePtr b) { return std::make_shared<PlusNode>(a, b, true); }
+NodePtr Node::plus(NodePtr a, NodePtr b, bool requires_grad) { return std::make_shared<PlusNode>(a, b, requires_grad); }
 
-NodePtr Node::operator-(NodePtr other) { return std::make_shared<MinusNode>(shared_from_this(), other, true); }
+NodePtr Node::operator-(NodePtr other) { return std::make_shared<MinusNode>(shared_from_this(), other, requires_grad); }
 
-NodePtr Node::matmul(NodePtr a, NodePtr b) { return std::make_shared<MatMulNode>(a, b, true); }
+NodePtr Node::matmul(NodePtr a, NodePtr b, bool requires_grad) { return std::make_shared<MatMulNode>(a, b, requires_grad); }
 
-NodePtr Node::sum() { return std::make_shared<SumNode>(shared_from_this(), true); }
+NodePtr Node::sum(bool requires_grad) { return std::make_shared<SumNode>(shared_from_this(), requires_grad); }
 
-NodePtr Node::activation(NodePtr a, float (*act)(float), float (*act_derivative)(float)) {
-    return std::make_shared<ActivationNode>(a, act, act_derivative, true);
+NodePtr Node::activation(NodePtr a, float (*act)(float), float (*act_derivative)(float), bool requires_grad) {
+    return std::make_shared<ActivationNode>(a, act, act_derivative, requires_grad);
 }
 
-NodePtr Node::relu(NodePtr a) { return std::make_shared<ReLUNode>(a, true); }
+NodePtr Node::relu(NodePtr a, bool requires_grad) { return std::make_shared<ReLUNode>(a, requires_grad); }
 
-NodePtr Node::sigmoid(NodePtr a) { return std::make_shared<SigmoidNode>(a, true); }
+NodePtr Node::sigmoid(NodePtr a, bool requires_grad) { return std::make_shared<SigmoidNode>(a, requires_grad); }
 
-NodePtr Node::tanh(NodePtr a) { return std::make_shared<TanhNode>(a, true); }
+NodePtr Node::tanh(NodePtr a, bool requires_grad) { return std::make_shared<TanhNode>(a, requires_grad); }
 
-NodePtr Node::pow(NodePtr a, float pow) { return std::make_shared<PowNode>(a, pow, true); }
+NodePtr Node::pow(NodePtr a, float pow, bool requires_grad) { return std::make_shared<PowNode>(a, pow, requires_grad); }
 
-NodePtr Node::mat_plus_vec(NodePtr a, NodePtr b) { return std::make_shared<MatPlusVecNode>(a, b, true); }
+NodePtr Node::mat_plus_vec(NodePtr a, NodePtr b, bool requires_grad) { return std::make_shared<MatPlusVecNode>(a, b, requires_grad); }
 
-NodePtr Node::mat_plus_row_vec(NodePtr a, NodePtr b) { return std::make_shared<MatPlusRowVecNode>(a, b, true); }
+NodePtr Node::mat_plus_row_vec(NodePtr a, NodePtr b, bool requires_grad) { return std::make_shared<MatPlusRowVecNode>(a, b, requires_grad); }
 
 NodePtr Node::dropout(int rows, int cols, float dropout_rate, bool requires_grad) {
     return std::make_shared<DropoutNode>(rows, cols, dropout_rate, requires_grad);
 }
 
-NodePtr Node::hadamard_product(NodePtr a, NodePtr b) { return std::make_shared<HadamardProductNode>(a, b, true); }
+NodePtr Node::hadamard_product(NodePtr a, NodePtr b, bool requires_grad) { return std::make_shared<HadamardProductNode>(a, b, requires_grad); }
 
-NodePtr Node::transpose(NodePtr a) { return std::make_shared<TransposeNode>(a, true); }
+NodePtr Node::transpose(NodePtr a, bool requires_grad) { return std::make_shared<TransposeNode>(a, requires_grad); }
 
 NodePtr Node::im2row(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w,
     int p_h, int p_w, bool requires_grad) {
