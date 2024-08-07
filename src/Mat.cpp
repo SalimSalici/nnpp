@@ -1,5 +1,6 @@
 #include "Mat.h"
 #include "SubMat.h"
+#include "activation_functions.h"
 
 #include <math.h>
 #include <cstring>
@@ -7,6 +8,8 @@
 #include <stdexcept>
 #include <functional>
 #include <limits>
+#include <vector>
+#include <immintrin.h>  // AVX2
 
 extern "C" {
 #include <cblas.h>
@@ -15,6 +18,7 @@ extern "C" {
 Mat::Mat(int rows, int cols, bool alloc_data) : rows(rows), cols(cols), size(rows * cols), is_transposed(false), right(1), down(cols), is_view(false) {
     if (alloc_data)
         data = new float[size];
+    else data = nullptr;
 }
 
 // Copy constructor
@@ -320,7 +324,24 @@ void Mat::hadamardProduct(Mat& result, const Mat& a, const Mat& b) {
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
     ) throw std::invalid_argument("Matrix mismatch in Mat::hadamardProduct. Dimensions: result(" + std::to_string(result.rows) + "," + std::to_string(result.cols) + "), a(" + std::to_string(a.rows) + "," + std::to_string(a.cols) + "), b(" + std::to_string(b.rows) + "," + std::to_string(b.cols) + ")");
-    for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] * b.data[i];
+    
+    // for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] * b.data[i];
+    
+    const int simd_width = 8; // AVX2 processes 8 floats at a time
+    int i = 0;
+    
+    // Process 8 elements at a time using AVX2
+    for (; i < result.size - simd_width; i += simd_width) {
+        __m256 a_vec = _mm256_loadu_ps(&a.data[i]);
+        __m256 b_vec = _mm256_loadu_ps(&b.data[i]);
+        __m256 result_vec = _mm256_mul_ps(a_vec, b_vec);
+        _mm256_storeu_ps(&result.data[i], result_vec);
+    }
+    
+    // Handle remaining elements
+    for (; i < result.size; i++) {
+        result.data[i] = a.data[i] * b.data[i];
+    }
 }
 
 void Mat::hadamardProduct_keep_res(Mat& result, const Mat& a, const Mat& b, float result_scaling) {
@@ -333,7 +354,43 @@ void Mat::hadamardProduct_keep_res(Mat& result, const Mat& a, const Mat& b, floa
         result.rows != a.rows || result.cols != a.cols ||
         result.rows != b.rows || result.cols != b.cols
     ) throw std::invalid_argument("Matrix mismatch in Mat::hadamardProduct_keep_res. Dimensions: result(" + std::to_string(result.rows) + "," + std::to_string(result.cols) + "), a(" + std::to_string(a.rows) + "," + std::to_string(a.cols) + "), b(" + std::to_string(b.rows) + "," + std::to_string(b.cols) + ")");
-    for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] * b.data[i] + result.data[i] * result_scaling;
+    
+    // for (int i = 0; i < result.size; i++) result.data[i] = a.data[i] * b.data[i] + result.data[i] * result_scaling;
+    
+    const int simd_width = 8; // AVX2 processes 8 floats at a time
+    int i = 0;
+
+    float* result_data = result.getData();
+    float* a_data = a.getData();
+    float* b_data = b.getData();
+    
+    if (result_scaling != 1) {
+        // Process 8 elements at a time using AVX2
+        __m256 scaling_vec = _mm256_set1_ps(result_scaling);
+        for (; i < result.size - simd_width; i += simd_width) {
+            __m256 a_vec = _mm256_loadu_ps(a_data + i);
+            __m256 b_vec = _mm256_loadu_ps(b_data + i);
+            __m256 result_vec = _mm256_loadu_ps(result_data + i);
+            __m256 product = _mm256_mul_ps(a_vec, b_vec);
+            __m256 scaled_result = _mm256_mul_ps(result_vec, scaling_vec);
+            __m256 final_result = _mm256_add_ps(product, scaled_result);
+            _mm256_storeu_ps(result_data + i, final_result);
+        }
+    } else {
+        for (; i < result.size - simd_width; i += simd_width) {
+            __m256 a_vec = _mm256_loadu_ps(a_data + i);
+            __m256 b_vec = _mm256_loadu_ps(b_data + i);
+            __m256 result_vec = _mm256_loadu_ps(result_data + i);
+            __m256 product = _mm256_mul_ps(a_vec, b_vec);
+            __m256 final_result = _mm256_add_ps(product, result_vec);
+            _mm256_storeu_ps(result_data + i, final_result);
+        }
+    }
+    
+    // Handle remaining elements
+    for (; i < result.size; i++) {
+        result.data[i] = a.data[i] * b.data[i] + result.data[i] * result_scaling;
+    }
 }
 
 Mat Mat::operator*(const Mat& other) const {
@@ -492,6 +549,31 @@ void Mat::apply_log(Mat& result, const Mat& a) {
         throw std::invalid_argument("Matrix dimensions mismatch for apply_log.");
     for (int i = 0; i < result.size; i++)
         result.data[i] = std::log(a.data[i] + 0.00000000001);
+}
+
+void Mat::apply_relu(Mat& result, const Mat& a) {
+    if (result.rows != a.rows || result.cols != a.cols)
+        throw std::invalid_argument("Matrix dimensions mismatch for apply.");
+
+    float* const a_data = a.getData();
+    float* const result_data = result.getData();
+    for (int i = 0; i < result.size; i++)
+        result_data[i] = activation_functions::relu(a_data[i]);
+
+}
+
+void Mat::apply_relu_derivative(Mat& result, const Mat& a) {
+    if (result.rows != a.rows || result.cols != a.cols)
+        throw std::invalid_argument("Matrix dimensions mismatch for apply.");
+
+    float* const a_data = a.getData();
+    float* const result_data = result.getData();
+    for (int i = 0; i < result.size; i++)
+        result_data[i] = activation_functions::relu_derivative(a_data[i]);
+
+    // for (int i = 0; i < result.size; i++) {
+    //     result.data[i] = a.data[i] > 0.0f ? 1.0f : 0.0f;
+    // }
 }
 
 Mat& Mat::raiseEach(int power) {
@@ -694,11 +776,18 @@ void Mat::mat_plus_row_vec(Mat& result, const Mat& mat, const Mat& vec) {
     if (result.rows != mat.rows || result.cols != mat.cols || vec.rows != 1 || vec.cols != mat.cols)
         throw std::invalid_argument("Matrix dimensions mismatch for mat_plus_row_vec.");
 
-    int mat_cols = mat.cols;
-    for (int r = 0; r < mat.rows; r++) {
+    const int mat_rows = mat.rows;
+    const int mat_cols = mat.cols;
+
+    float* const result_data = result.getData();
+    float* const mat_data = mat.getData();
+    int disp = 0;
+    for (int r = 0; r < mat_rows; r++) {
         for (int c = 0; c < mat_cols; c++) {
-            int mat_idx = r * mat_cols + c;
-            result.data[mat_idx] = mat.data[mat_idx] + vec.data[c];
+            *(result_data + disp) = *(mat_data + disp) + vec.data[c];
+            disp++;
+            // const int mat_idx = r * mat_cols + c;
+            // result.data[mat_idx] = mat.data[mat_idx] + vec.data[c];
         }
     }
 }
@@ -708,14 +797,18 @@ void Mat::row_vec_plus_mat(Mat& result, const Mat& vec, const Mat& mat) {
     if (result.rows != 1 || result.cols != vec.cols || vec.rows != 1 || vec.cols != mat.cols)
         throw std::invalid_argument("Matrix dimensions mismatch for row_vec_plus_mat.");
 
-    int mat_cols = mat.cols;
-    for (int c = 0; c < mat_cols; c++) {
-        float sum = 0;
-        for (int r = 0; r < mat.rows; r++) {
-            int mat_idx = r * mat_cols + c;
-            sum += mat.data[mat_idx];
+    result.zero();
+
+    const int mat_rows = mat.rows;
+    const int mat_cols = mat.cols;
+
+    float* result_data = result.getData();
+    float* mat_data = mat.getData();
+
+    for (int r = 0; r < mat_rows; r++) {
+        for (int c = 0; c < mat_cols; c++) {
+            result_data[c] += mat_data[r * mat.cols + c];
         }
-        result.data[c] = vec.data[c] + sum;
     }
 }
 
@@ -992,6 +1085,30 @@ void Mat::mec_lower(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, i
     }
 }
 
+void Mat::mec_lower_separated(Mat& result, std::vector<std::shared_ptr<Mat>>& inputs, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w) {
+    int o_w = (w - k_w) / s_w + 1;
+    // int o_h = (h - k_h) / s_h + 1;
+
+    if (result.size != n * o_w * h * k_w * c)
+        throw std::invalid_argument("Matrix 'result' dimensions mismatch for mec_lower.");
+
+    if (inputs.size() != (size_t)n || inputs[0]->getSize() != h * w * c)
+        throw std::invalid_argument("Mat::mec_lower_separated - Matrix 'im' dimensions mismatch for mec_lower.");
+
+    float *res_data = result.getData();
+
+    for (int nn = 0; nn < n; nn++) {
+        float* cur_im_data = inputs[nn]->getData();
+        for (int ww = 0; ww < o_w; ww++) {
+            int col_idx = ww * s_w * c;
+            for (int hh = 0; hh < h; hh++) {
+                std::memcpy(res_data, cur_im_data + col_idx + hh * w * c, k_w * c * sizeof(float));
+                res_data += k_w * c;
+            }
+        }
+    }
+}
+
 void Mat::mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
     int im_padded_h = h + 2 * p_h;
     int im_padded_w = w + 2 * p_w;
@@ -1045,6 +1162,62 @@ void Mat::mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, 
     }
 }
 
+// void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int* indeces) {
+//     const int o_h = (h - k_h) / s_h + 1;
+//     const int o_w = (w - k_w) / s_w + 1;
+
+//     int* original_indeces = indeces;
+
+//     if (result.getSize() != n * o_h * o_w * c)
+//         throw std::invalid_argument("Matrix 'result' dimensions mismatch for maxpool_hnwc.");
+
+//     if (im.getSize() != n * h * w * c)
+//         throw std::invalid_argument("Matrix 'im' dimensions mismatch for maxpool_hnwc.");
+
+//     float* const res_data = result.getData();
+//     const float* im_data = im.getData();
+
+//     const int im_down = im.getDown();
+
+//     const float minus_inf = -std::numeric_limits<float>::infinity();
+
+//     for (int nn = 0; nn < n; nn++) {
+//         for (int hh = 0; hh < o_h; hh++) {
+//             for (int ww = 0; ww < o_w; ww++) {
+//                 for (int cc = 0; cc < c; cc++) {
+//                     float max_val = minus_inf;
+//                     int max_idx = 0;
+//                     for (int kh = 0; kh < k_h; kh++) {
+//                         for (int kw = 0; kw < k_w; kw++) {
+//                             int h_idx = hh * s_h + kh;
+//                             int w_idx = ww * s_w + kw;
+//                             if (h_idx < h && w_idx < w) {
+//                                 // int idx = (nn * h + h_idx) * w * c + w_idx * c + cc;
+//                                 int idx = nn * w * c + (h_idx * im_down) + w_idx * c + cc;
+//                                 float val = im_data[idx];
+//                                 if (max_val < val) {
+//                                     max_val = val;
+//                                     max_idx = idx;
+//                                 }
+//                                 // max_val = max_val > val ? max_val : val;
+//                             }
+//                         }
+//                     }
+//                     // std::cout << (nn * o_h * o_w + hh * o_w + ww) * c + cc << ", max_idx: " << max_idx << ", max_val: " << max_val << std::endl;
+//                     res_data[(nn * o_h * o_w + hh * o_w + ww) * c + cc] = max_val;
+//                     *indeces = max_idx;
+//                     indeces++;
+//                 }
+//             }
+//         }
+//     }
+//     for (int i = 0; i < 100; i++) {
+//         std::cout << original_indeces[i] << std::endl;
+//     }
+//     exit(0);
+//     return;
+// }
+
 void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int* indeces) {
     const int o_h = (h - k_h) / s_h + 1;
     const int o_w = (w - k_w) / s_w + 1;
@@ -1055,40 +1228,50 @@ void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c,
     if (im.getSize() != n * h * w * c)
         throw std::invalid_argument("Matrix 'im' dimensions mismatch for maxpool_hnwc.");
 
-    float* const res_data = result.getData();
-    const float* im_data = im.getData();
+    float maxes[c];
+    int indeces_[c];
+
+    float* res_data = result.getData();
+    float* im_data = im.getData();
 
     const int im_down = im.getDown();
 
     const float minus_inf = -std::numeric_limits<float>::infinity();
 
+    // std::cout << "BEFORE\n";
+
     for (int nn = 0; nn < n; nn++) {
+        float* start_inputs_n = im_data + nn * w * c;
+
         for (int hh = 0; hh < o_h; hh++) {
+            float* start_inputs = start_inputs_n + hh * s_h * im_down;
+
             for (int ww = 0; ww < o_w; ww++) {
-                for (int cc = 0; cc < c; cc++) {
-                    float max_val = minus_inf;
-                    int max_idx = 0;
-                    for (int kh = 0; kh < k_h; kh++) {
-                        for (int kw = 0; kw < k_w; kw++) {
-                            int h_idx = hh * s_h + kh;
-                            int w_idx = ww * s_w + kw;
-                            if (h_idx < h && w_idx < w) {
-                                // int idx = (nn * h + h_idx) * w * c + w_idx * c + cc;
-                                int idx = nn * w * c + (h_idx * im_down) + w_idx * c + cc;
-                                float val = im_data[idx];
-                                if (max_val < val) {
-                                    max_val = val;
-                                    max_idx = idx;
-                                }
-                                // max_val = max_val > val ? max_val : val;
+                float* start_inputs_w = start_inputs + ww * s_w * c;
+
+                for (int i = 0; i < c; i++)
+                    maxes[i] = minus_inf;
+
+                for (int mw = 0; mw < k_w; mw++) {
+                    float* start_inputs_s = start_inputs_w + mw * c;
+
+                    for (int mh = 0; mh < k_h; mh++) {
+                        start_inputs_s += mh * im_down;
+                        const int cached = start_inputs_s - im_data;
+
+                        for (int cc = 0; cc < c; cc++) {
+                            if (start_inputs_s[cc] >= maxes[cc]) {
+                                maxes[cc] = start_inputs_s[cc]; 
+                                indeces_[cc] = cached + cc;
                             }
                         }
                     }
-                    // std::cout << (nn * o_h * o_w + hh * o_w + ww) * c + cc << ", max_idx: " << max_idx << ", max_val: " << max_val << std::endl;
-                    res_data[(nn * o_h * o_w + hh * o_w + ww) * c + cc] = max_val;
-                    *indeces = max_idx;
-                    indeces++;
                 }
+
+                std::memcpy(res_data, maxes, sizeof(float) * c);
+                std::memcpy(indeces, indeces_, sizeof(int) * c);
+                res_data += c;
+                indeces += c;
             }
         }
     }

@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <cmath>
+#include <vector>
 
 extern "C" {
 #include <cblas.h>
@@ -84,16 +85,20 @@ class Layer {
 class InputLayer : public Layer {
     public:
 
-    InputLayer(int size, int mini_batch_size, bool requires_grad = false) {
+    InputLayer(int size, int mini_batch_size, bool separated = false, bool requires_grad = false) {
         inputs = make_shared<Node>(mini_batch_size, size, requires_grad);
         output = inputs;
         samples_along_cols = false;
+        this->separated = separated;
         this->size = size;
     }
 
     void construct_forward(LayerPtr prev_layer) override {}
 
     void load_train_samples(Sample* samples[], int mini_batch_size) {
+
+        this->mini_batch_size = mini_batch_size;
+
         if (mini_batch_size != output->getData().getRows()) {
             throw std::invalid_argument("Error: Loss::load_train_samples - mini_batch_size != output->getData().getRows()");
             return;
@@ -102,8 +107,17 @@ class InputLayer : public Layer {
         // float* data = output->getData().getData();
         float* data = inputs->getData().getData();
 
-        for (int i = 0, j = 0; j < mini_batch_size; i += size, j++)
-            std::memcpy(data + i, samples[j]->getData(), size * sizeof(float));
+        if (!separated) {
+            for (int i = 0, j = 0; j < mini_batch_size; i += size, j++)
+                std::memcpy(data + i, samples[j]->getData(), size * sizeof(float));
+        } else {
+            separated_inputs.clear();
+            for (int i = 0; i < mini_batch_size; i++) {
+                shared_ptr<Mat> sample_mat = make_shared<Mat>(1, size, false);
+                sample_mat->view(samples[i]->getData());
+                separated_inputs.push_back(sample_mat);
+            }
+        }
     }
 
     void load_raw(float* data, int data_size) {
@@ -118,11 +132,29 @@ class InputLayer : public Layer {
         cout << "Input layer\n";
     }
 
+    vector<shared_ptr<Mat>>& get_separated_inputs() {
+        return separated_inputs;
+    }
+
+    int get_mini_batch_size() {
+        return mini_batch_size;
+    }
+
+    bool is_separated() {
+        return separated;
+    }
+
+    void process_inputs_separated(bool separated) {
+        this->separated = separated;
+    }
+
     private:
 
     NodePtr inputs;
+    vector<shared_ptr<Mat>> separated_inputs;
     int size;
     int mini_batch_size;
+    bool separated;
 };
 
 class Linear : public Layer {
@@ -321,13 +353,30 @@ class Conv2d_mec : public Layer {
             return;
         }
 
-        NodePtr inputs = prev_layer->get_output();
+        // bool lowered_requires_grad = true;
 
-        n = inputs->getData().getRows();
+        // if (auto input_layer = dynamic_cast<InputLayer*>(prev_layer.get())) {
+        //     // If prev_layer is an instance of InputLayer, it's now cast to InputLayer
+        //     // You can use input_layer pointer here if needed
+        //     lowered_requires_grad = false;
+        //     if (input_layer->is_separated()) {
+        //         vector<shared_ptr<Mat>> separated_inputs = input_layer->get_separated_inputs();
+        //         n = separated_inputs.size();
+        //         mec_lowered = Node::mec_lower_separated(separated_inputs, n, h, w, c_i, k_h, k_w, s_h, s_w);
+        //     } else {
 
-        inputs_reshaped = Node::reshape(inputs, n * h, w * c_i);
+        //     }
+        // }
 
-        mec_lowered = Node::mec_lower(inputs_reshaped, n, h, w, c_i, k_h, k_w, s_h, s_w, p_h, p_w);
+        // NodePtr inputs = prev_layer->get_output();
+
+        // n = inputs->getData().getRows();
+
+        // inputs_reshaped = Node::reshape(inputs, n * h, w * c_i);
+
+        // mec_lowered = Node::mec_lower(inputs_reshaped, n, h, w, c_i, k_h, k_w, s_h, s_w, p_h, p_w, lowered_requires_grad);
+
+        mec_lowered = handle_inputs_to_mec_lower(prev_layer);
 
         conv_hnwc = Node::mec_conv_mm(mec_lowered, kernels, n, im_padded_h, im_padded_w, c_i, k_h, k_w, s_h, s_w);
 
@@ -336,6 +385,23 @@ class Conv2d_mec : public Layer {
         conv_plus_bias = Node::mat_plus_row_vec(conv_reshaped_for_bias, bias);
         
         output = Node::reshape(conv_plus_bias, out_h, n * out_w * c_o);
+    }
+
+    NodePtr handle_inputs_to_mec_lower(LayerPtr prev_layer) {
+        bool lowered_requires_grad = true;
+        NodePtr inputs = prev_layer->get_output();
+        n = inputs->getData().getRows();
+
+        if (auto input_layer = dynamic_cast<InputLayer*>(prev_layer.get())) {
+            lowered_requires_grad = false;
+            if (input_layer->is_separated()) {
+                vector<shared_ptr<Mat>>& separated_inputs = input_layer->get_separated_inputs();
+                return Node::mec_lower_separated(separated_inputs, n, h, w, c_i, k_h, k_w, s_h, s_w, false);
+            }
+        }
+
+        inputs_reshaped = Node::reshape(inputs, n * h, w * c_i);
+        return Node::mec_lower(inputs_reshaped, n, h, w, c_i, k_h, k_w, s_h, s_w, p_h, p_w, lowered_requires_grad);
     }
 
     void update (float lr, float mini_batch_size) override {
@@ -359,7 +425,6 @@ class Conv2d_mec : public Layer {
             cblas_sgemm(CblasRowMajor,
                     CblasTrans, CblasNoTrans,
                     kernels->getRows(), kernels->getCols(), next_grad_rows,
-                    // ERROR HERE: OTHER_START VS CUR_OTHER_START and NEXT_GRAD_START VS CUR_NEXT_GRAD_START
                     -lr / mini_batch_size, cur_other_start, mec_lowered->getData().getCols(), cur_next_grad_start, next_grad_cols,
                     1.0, kernels->getData().getData(), c_o);            
         }
@@ -548,7 +613,7 @@ class ReLU : public Layer {
    
     void construct_forward(LayerPtr prev_layer) override {
         NodePtr inputs = prev_layer->get_output();
-        output = Node::activation(inputs, activation_functions::relu, activation_functions::relu_derivative);
+        output = Node::relu(inputs);
         samples_along_cols = prev_layer->get_samples_along_cols();
     }
 

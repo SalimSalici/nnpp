@@ -5,6 +5,7 @@
 
 #include <deque>
 #include <iostream>
+#include <vector>
 #include <stdexcept>
 
 #include "Mat.h"
@@ -20,6 +21,7 @@ class MatMulNode;
 class DropoutNode;
 class HadamardProductNode;
 class ActivationNode;
+class ReLUNode;
 class SigmoidNode;
 class TanhNode;
 class PowNode;
@@ -30,6 +32,7 @@ class TransposeNode;
 class Im2rowNode;
 class ReshapeNode;
 class MecLowerNode;
+class MecLowerSeparatedNode;
 class MecConvNode;
 class Maxpool_hnwc_to_nhwc_Node;
 
@@ -39,7 +42,8 @@ using NodePtr = std::shared_ptr<Node>;
 class Node : public std::enable_shared_from_this<Node> {
    public:
     Node(int rows, int cols, bool requires_grad) : data(rows, cols), grad(rows, cols), requires_grad(requires_grad) {
-        grad.zero();
+        // if (requires_grad)
+        //     grad.zero();
     }
 
     Node(const Mat& toLoad, bool requires_grad) : Node(toLoad.getRows(), toLoad.getCols(), requires_grad) {
@@ -133,6 +137,7 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr plus(NodePtr a, NodePtr b);
     static NodePtr matmul(NodePtr a, NodePtr b);
     static NodePtr activation(NodePtr a, float (*act)(float), float (*act_derivative)(float));
+    static NodePtr relu(NodePtr a);
     static NodePtr sigmoid(NodePtr a);
     static NodePtr tanh(NodePtr a);
     static NodePtr pow(NodePtr a, float pow);
@@ -147,6 +152,7 @@ class Node : public std::enable_shared_from_this<Node> {
     static NodePtr reshape(NodePtr a, int reshaped_rows, int reshaped_cols, bool requires_grad = true);
     static NodePtr mec_lower(NodePtr a, int n, int h, int w, int c,
         int k_h, int k_w, int s_h, int s_w, int p_h, int p_w, bool requires_grad = true);
+    static NodePtr mec_lower_separated(std::vector<shared_ptr<Mat>>& inputs, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, bool requires_grad = true);
     static NodePtr mec_conv_mm(NodePtr lowered, NodePtr kernels, int n, int h, int w, int c,
                 int k_h, int k_w, int s_h, int s_w, bool requires_grad = true);
     static NodePtr maxpool_hnwc_to_nhwc(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, bool requires_grad = true);
@@ -294,14 +300,44 @@ class ActivationNode : public UnaryNode {
         #endif
         if (a->get_requires_grad()) {
             Mat::apply(prime, a->getData(), act_derivative);
-            Mat::hadamardProduct(prime, prime, grad);
-            Mat::plus(a->getGrad(), a->getGrad(), prime);
+            // Mat::hadamardProduct(prime, prime, grad);
+            // Mat::plus(a->getGrad(), a->getGrad(), prime);
+            Mat::hadamardProduct_keep_res(a->getGrad(), grad, prime, 1);
         }
     }
 
     protected:
     float (*act)(float);
     float (*act_derivative)(float);
+    Mat prime;
+};
+
+class ReLUNode : public UnaryNode {
+    public:
+     ReLUNode(NodePtr a, bool requires_grad) :
+        UnaryNode(a, a->getRows(), a->getCols(), requires_grad), prime(a->getRows(), a->getCols()) {}
+
+    void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "ReLUNode compute" << std::endl;
+        #endif
+        Mat::apply_relu(data, a->getData());
+    }
+
+    void back() override {
+        #if LOG_OPERATIONS
+        std::cout << "SigmoidNode back" << std::endl;
+        #endif
+        if (a->get_requires_grad()) {
+            Mat::apply_relu_derivative(prime, a->getData());
+            // Mat::hadamardProduct(prime, prime, grad);
+            // Mat::plus(a->getGrad(), a->getGrad(), prime);
+            Mat::hadamardProduct_keep_res(a->getGrad(), grad, prime, 1);
+        }
+    }
+
+    protected:
+
     Mat prime;
 };
 
@@ -316,8 +352,9 @@ class SigmoidNode : public ActivationNode {
         #endif
         if (a->get_requires_grad()) {
             Mat::apply(prime, data, activation_functions::sigmoid_derivative_with_sig);
-            Mat::hadamardProduct(prime, prime, grad);
-            Mat::plus(a->getGrad(), a->getGrad(), prime);
+            // Mat::hadamardProduct(prime, prime, grad);
+            // Mat::plus(a->getGrad(), a->getGrad(), prime);
+            Mat::hadamardProduct_keep_res(a->getGrad(), grad, prime, 1);
         }
     }
 };
@@ -333,8 +370,9 @@ class TanhNode : public ActivationNode {
         #endif
         if (a->get_requires_grad()) {
             Mat::apply(prime, data, activation_functions::tanh_derivative_with_tanh);
-            Mat::hadamardProduct(prime, prime, grad);
-            Mat::plus(a->getGrad(), a->getGrad(), prime);
+            // Mat::hadamardProduct(prime, prime, grad);
+            // Mat::plus(a->getGrad(), a->getGrad(), prime);
+            Mat::hadamardProduct_keep_res(a->getGrad(), grad, prime, 1);
         }
     }
 };
@@ -936,7 +974,7 @@ class MecLowerNode : public UnaryNode {
     static int calculate_lower_h(int n, int h, int w, int c,
         int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
         
-        int im_padded_h = h + 2 * p_h;
+        // int im_padded_h = h + 2 * p_h;
         int im_padded_w = w + 2 * p_w;
 
         // int out_h = (im_padded_h - k_h) / s_h + 1;
@@ -950,12 +988,92 @@ class MecLowerNode : public UnaryNode {
         int k_h, int k_w, int s_h, int s_w, int p_h, int p_w) {
         
         int im_padded_h = h + 2 * p_h;
-        int im_padded_w = w + 2 * p_w;
+        // int im_padded_w = w + 2 * p_w;
 
         // int out_h = (im_padded_h - k_h) / s_h + 1;
         // int out_w = (im_padded_w - k_w) / s_w + 1;
 
         int _lower_w = im_padded_h * k_w * c;
+        return _lower_w;
+    }
+};
+
+class MecLowerSeparatedNode : public Node {
+    public:
+
+    MecLowerSeparatedNode(vector<shared_ptr<Mat>>& inputs, 
+        int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w, bool requires_grad
+    )
+    : Node(
+        calculate_lower_h(n, h, w, c, k_h, k_w, s_h, s_w),
+        calculate_lower_w(n, h, w, c, k_h, k_w, s_h, s_w),
+        requires_grad
+    ), inputs(inputs) {    
+        this->n = n;
+        this->h = h;
+        this->w = w;
+        this->c = c;
+        this->k_h = k_h;
+        this->k_w = k_w;
+        this->s_h = s_h;
+        this->s_w = s_w;
+
+        // int out_h = (im_padded_h - k_h) / s_h + 1;
+        int out_w = (w - k_w) / s_w + 1;
+
+        this->lowered_h = out_w * n;
+        this->lowered_w = h * k_w * c;
+    }
+    
+    
+    void compute() override {
+        #if LOG_OPERATIONS
+        std::cout << "MecLowerNode compute" << std::endl;
+        std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
+        std::cout << "out: " << data.getRows() << "x" << data.getCols() << std::endl << std::endl;
+        #endif
+
+        Mat::mec_lower_separated(data, inputs, n, h, w, c, k_h, k_w, s_h, s_w);
+    }
+    
+    // void back() override {
+    //     throw std::runtime_error("Can't go back on MecLowerSeparatedNode");
+    // }
+    
+    private:
+
+    int n, h, w, c;
+    int k_h, k_w;
+    int s_h, s_w;
+    int lowered_h, lowered_w;
+
+    std::vector<shared_ptr<Mat>>& inputs;
+
+
+    static int calculate_lower_h(int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w) {
+        
+        // int im_padded_h = h + 2 * p_h;
+        // int im_padded_w = w + 2 * p_w;
+
+        // int out_h = (im_padded_h - k_h) / s_h + 1;
+        int out_w = (w - k_w) / s_w + 1;
+
+        int _lower_h = out_w * n;
+        return _lower_h;
+    }
+
+    static int calculate_lower_w(int n, int h, int w, int c,
+        int k_h, int k_w, int s_h, int s_w) {
+        
+        // int im_padded_h = h + 2 * p_h;
+        // int im_padded_w = w + 2 * p_w;
+
+        // int out_h = (im_padded_h - k_h) / s_h + 1;
+        // int out_w = (im_padded_w - k_w) / s_w + 1;
+
+        int _lower_w = h * k_w * c;
         return _lower_w;
     }
 };
@@ -1055,6 +1173,10 @@ class Maxpool_hnwc_to_nhwc_Node : public UnaryNode {
             float* a_grad_data = a->getGrad().getData();
             float* grad_data = grad.getData();
 
+            // for (int i = 0; i < out_h * out_w * n * c; i++) {
+            //     std::cout << i << ": " << indeces[i] << "\n";
+            // }
+
             for (int i = 0; i < out_h * out_w * n * c; i++) {
                 a_grad_data[indeces[i]] += grad_data[i];
             }
@@ -1082,6 +1204,8 @@ NodePtr Node::sum() { return std::make_shared<SumNode>(shared_from_this(), true)
 NodePtr Node::activation(NodePtr a, float (*act)(float), float (*act_derivative)(float)) {
     return std::make_shared<ActivationNode>(a, act, act_derivative, true);
 }
+
+NodePtr Node::relu(NodePtr a) { return std::make_shared<ReLUNode>(a, true); }
 
 NodePtr Node::sigmoid(NodePtr a) { return std::make_shared<SigmoidNode>(a, true); }
 
@@ -1113,6 +1237,10 @@ NodePtr Node::reshape(NodePtr a, int reshaped_rows, int reshaped_cols, bool requ
 NodePtr Node::mec_lower(NodePtr a, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w,
         int p_h, int p_w, bool requires_grad) {
     return std::make_shared<MecLowerNode>(a, n, h, w, c, k_h, k_w, s_h, s_w, p_h, p_w, requires_grad);
+}
+
+NodePtr Node::mec_lower_separated(std::vector<shared_ptr<Mat>>& inputs, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, bool requires_grad) {
+    return std::make_shared<MecLowerSeparatedNode>(inputs, n, h, w, c, k_h, k_w, s_h, s_w, requires_grad);
 }
 
 NodePtr Node::mec_conv_mm(NodePtr lowered, NodePtr kernels, int n, int h, int w, int c,

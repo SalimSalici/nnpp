@@ -20,8 +20,9 @@ typedef struct Evaluation {
 
 class NeuralNetwork {
    public:
-    NeuralNetwork(int input_size) {
+    NeuralNetwork(int input_size, bool inputs_separated = false) {
         this->input_size = input_size;
+        this->inputs_separated = inputs_separated;
     }
 
     void add_layer(LayerPtr layer) {
@@ -33,7 +34,7 @@ class NeuralNetwork {
         Node::reset_markers(sorted_nodes);
         sorted_nodes.clear();
 
-        input_layer = make_shared<InputLayer>(input_size, mini_batch_size);
+        input_layer = make_shared<InputLayer>(input_size, mini_batch_size, inputs_separated);
         setup_computatioal_graph();
         // loss = make_shared<Loss>(layers.back()->get_output()->getData().getRows(), mini_batch_size);
         loss = make_loss(loss_type, layers.back()->get_output()->getData().getRows(), mini_batch_size);
@@ -77,6 +78,10 @@ class NeuralNetwork {
         for (auto& layer : layers) {
             layer->update(lr, mini_batch_size);
         }
+    }
+
+    void process_inputs_separated(bool separated) {
+        this->inputs_separated = separated;
     }
 
     void sgd(Sample* samples[], int samples_count, float lr, int epochs, int mini_batch_size,
@@ -226,8 +231,13 @@ class NeuralNetwork {
         }
     }
 
+    shared_ptr<InputLayer> get_input_layer() {
+        return input_layer;
+    }
+
    private:
     int input_size;
+    bool inputs_separated;
     shared_ptr<Loss> loss;
     shared_ptr<InputLayer> input_layer;
     vector<LayerPtr> layers; // input layer is not included

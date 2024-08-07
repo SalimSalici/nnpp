@@ -12,18 +12,24 @@
 #include "Sample.h"
 #include "utils.h"
 
+extern "C" {
+#include <cblas.h>
+}
+
 using namespace std;
 
 int main(int argc, char const *argv[]) {
 
     std::srand(std::time(0));
 
-    int training_samples_count = 600;
-    int test_samples_count = 1000;
+    goto_set_num_threads(2);
+    openblas_set_num_threads(2);
+
+    int training_samples_count = 60000;
+    int test_samples_count = 10000;
     float black = 0;
     float white = 1;
-
-
+    
     // MNIST
     MnistSample* training_data = mnist_load_samples("data/train-images.idx3-ubyte", "data/train-labels.idx1-ubyte", 0, training_samples_count, black, white);
     MnistSample* test_data = mnist_load_samples("data/t10k-images.idx3-ubyte", "data/t10k-labels.idx1-ubyte", 0, test_samples_count, black, white);
@@ -42,13 +48,15 @@ int main(int argc, char const *argv[]) {
     free(training_data);
     free(test_data);
 
+
     float lr = 0.1;
-    int epochs = 30;
+    int epochs = 1;
 
-
-    int minibatch_size = 10;
+    int minibatch_size = 50;
 
     NeuralNetwork nn(28*28);
+
+    nn.process_inputs_separated(true);
 
     int c_out_1 = 20;
     int c_out_2 = 40;
@@ -74,21 +82,7 @@ int main(int argc, char const *argv[]) {
 
     nn.initialize_layers();
 
-    // nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
-    nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, training_samples, training_samples_count);
-
-
-    cin.get();
-    linear_1->freeze_params();
-    linear_2->freeze_params();
-
-    conv_1->initialize();
-    conv_2->initialize();
-
-    // conv_1->freeze_params();
-    // conv_2->freeze_params();
-
-    nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, training_samples, training_samples_count);
+    nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
 
     return 0;
 }

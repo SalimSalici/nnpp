@@ -2,6 +2,8 @@
 #define MAT_H
 
 #include <functional>
+#include <memory>
+#include <vector>
 
 class Mat {
    public:
@@ -39,6 +41,8 @@ class Mat {
     // changes the current Mat object to be a view of another Mat object
     void view(const Mat& other);
 
+    void view(float* data);
+
     Mat operator+(const Mat& other) const;
     Mat operator-(const Mat& other) const;
     Mat operator*(const Mat& other) const;
@@ -68,6 +72,8 @@ class Mat {
     static void apply(Mat& result, const Mat& a, float (*act)(float));
     static void apply(Mat& result, const Mat& a, float (*act)(float, void*), void* args);
     static void apply_log(Mat& result, const Mat& a);
+    static void apply_relu(Mat& result, const Mat& a);
+    static void apply_relu_derivative(Mat& result, const Mat& a);
     static void pow(Mat& result, const Mat& a, int power);
     static void pow(Mat& result, const Mat& a, float power);
     static void scale(Mat& result, const Mat& a, float factor);
@@ -82,6 +88,7 @@ class Mat {
     static void im2col_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
     static void col2img_nhwc_additive(Mat& result, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
     static void mec_lower(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
+    static void mec_lower_separated(Mat& result, std::vector<std::shared_ptr<Mat>>& inputs, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w);
     static void mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int p_h, int p_w);
     static void mec_conv(Mat& result, Mat& lowered, Mat& kernels, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w);
     static void mec_back_into_lowered(Mat& result, Mat& lowered, Mat& kernels, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w);
