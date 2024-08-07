@@ -1029,8 +1029,7 @@ class MecLowerSeparatedNode : public Node {
     
     void compute() override {
         #if LOG_OPERATIONS
-        std::cout << "MecLowerNode compute" << std::endl;
-        std::cout << "a: " << a->getData().getRows() << "x" << a->getData().getCols() << std::endl;
+        std::cout << "MecLowerSeparatedNode compute" << std::endl;
         std::cout << "out: " << data.getRows() << "x" << data.getCols() << std::endl << std::endl;
         #endif
 

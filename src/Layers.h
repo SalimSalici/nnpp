@@ -556,6 +556,7 @@ class Dropout : public Layer {
     void construct_forward(LayerPtr prev_layer) override {
 
         NodePtr inputs = prev_layer->get_output();
+        samples_along_cols = prev_layer->get_samples_along_cols();
 
         if (is_inference) {
             output = inputs;
@@ -565,7 +566,6 @@ class Dropout : public Layer {
         NodePtr dropout_node = Node::dropout(inputs->getData().getRows(), inputs->getData().getCols(), p, false);
         output = Node::hadamard_product(inputs, dropout_node);
 
-        samples_along_cols = prev_layer->get_samples_along_cols();
     }
 
     void update(float lr, float mini_batch_size) override {}

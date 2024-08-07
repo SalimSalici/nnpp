@@ -50,7 +50,7 @@ int main(int argc, char const *argv[]) {
 
 
     float lr = 0.1;
-    int epochs = 1;
+    int epochs = 30;
 
     int minibatch_size = 50;
 
@@ -75,14 +75,29 @@ int main(int argc, char const *argv[]) {
     nn.add_layer(make_shared<ReLU>());
     nn.add_layer(make_shared<Maxpool_hnwc_to_nhwc>(minibatch_size, 8, 8, c_out_2, 2, 2, 2, 2));
 
+    nn.add_layer(make_shared<Dropout>(0.2));
     nn.add_layer(linear_1);
     nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Dropout>(0.5));
     nn.add_layer(linear_2);
     nn.set_loss_type(LossType::CCE);
 
     nn.initialize_layers();
 
     nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
+
+    // NeuralNetwork nn(28*28);
+
+    // nn.add_layer(make_shared<Dropout>(0.2));
+    // nn.add_layer(make_shared<Linear>(28*28, 1000));
+    // nn.add_layer(make_shared<ReLU>());
+    // nn.add_layer(make_shared<Dropout>(0.5));
+    // nn.add_layer(make_shared<Linear>(1000, 10));
+    // nn.set_loss_type(LossType::CCE);
+
+    // nn.initialize_layers();
+
+    // nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
 
     return 0;
 }

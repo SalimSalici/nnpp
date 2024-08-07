@@ -478,8 +478,10 @@ void Mat::matmul_mm(Mat& result, const Mat& a, const Mat& b, float ab_s, float c
     int b_rows = b.getRows();
     int b_cols = b.getCols();
 
-    if (a_cols != b_rows || result.rows != a_rows || result.cols != b_cols)
+    if (a_cols != b_rows || result.rows != a_rows || result.cols != b_cols) {
+        std::cout << "a_rows: " << a_rows << ", a_cols: " << a_cols << ", b_rows: " << b_rows << ", b_cols: " << b_cols << ", result_rows: " << result.rows << ", result_cols: " << result.cols << std::endl;
         throw std::invalid_argument("Matrix dimensions mismatch for multiplication.");
+    }
 
     CBLAS_TRANSPOSE a_transposed = a.isTransposed() ? CblasTrans : CblasNoTrans;
     CBLAS_TRANSPOSE b_transposed = b.isTransposed() ? CblasTrans : CblasNoTrans;
@@ -1162,62 +1164,6 @@ void Mat::mec_lower_to_img_additive(Mat& im, Mat& lowered, int n, int h, int w, 
     }
 }
 
-// void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int* indeces) {
-//     const int o_h = (h - k_h) / s_h + 1;
-//     const int o_w = (w - k_w) / s_w + 1;
-
-//     int* original_indeces = indeces;
-
-//     if (result.getSize() != n * o_h * o_w * c)
-//         throw std::invalid_argument("Matrix 'result' dimensions mismatch for maxpool_hnwc.");
-
-//     if (im.getSize() != n * h * w * c)
-//         throw std::invalid_argument("Matrix 'im' dimensions mismatch for maxpool_hnwc.");
-
-//     float* const res_data = result.getData();
-//     const float* im_data = im.getData();
-
-//     const int im_down = im.getDown();
-
-//     const float minus_inf = -std::numeric_limits<float>::infinity();
-
-//     for (int nn = 0; nn < n; nn++) {
-//         for (int hh = 0; hh < o_h; hh++) {
-//             for (int ww = 0; ww < o_w; ww++) {
-//                 for (int cc = 0; cc < c; cc++) {
-//                     float max_val = minus_inf;
-//                     int max_idx = 0;
-//                     for (int kh = 0; kh < k_h; kh++) {
-//                         for (int kw = 0; kw < k_w; kw++) {
-//                             int h_idx = hh * s_h + kh;
-//                             int w_idx = ww * s_w + kw;
-//                             if (h_idx < h && w_idx < w) {
-//                                 // int idx = (nn * h + h_idx) * w * c + w_idx * c + cc;
-//                                 int idx = nn * w * c + (h_idx * im_down) + w_idx * c + cc;
-//                                 float val = im_data[idx];
-//                                 if (max_val < val) {
-//                                     max_val = val;
-//                                     max_idx = idx;
-//                                 }
-//                                 // max_val = max_val > val ? max_val : val;
-//                             }
-//                         }
-//                     }
-//                     // std::cout << (nn * o_h * o_w + hh * o_w + ww) * c + cc << ", max_idx: " << max_idx << ", max_val: " << max_val << std::endl;
-//                     res_data[(nn * o_h * o_w + hh * o_w + ww) * c + cc] = max_val;
-//                     *indeces = max_idx;
-//                     indeces++;
-//                 }
-//             }
-//         }
-//     }
-//     for (int i = 0; i < 100; i++) {
-//         std::cout << original_indeces[i] << std::endl;
-//     }
-//     exit(0);
-//     return;
-// }
-
 void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c, int k_h, int k_w, int s_h, int s_w, int* indeces) {
     const int o_h = (h - k_h) / s_h + 1;
     const int o_w = (w - k_w) / s_w + 1;
@@ -1237,8 +1183,6 @@ void Mat::maxpool_hnwc_to_nhwc(Mat& result, Mat& im, int n, int h, int w, int c,
     const int im_down = im.getDown();
 
     const float minus_inf = -std::numeric_limits<float>::infinity();
-
-    // std::cout << "BEFORE\n";
 
     for (int nn = 0; nn < n; nn++) {
         float* start_inputs_n = im_data + nn * w * c;
