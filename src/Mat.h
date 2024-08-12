@@ -27,6 +27,7 @@ class Mat {
     Mat& zero();
     Mat& fill(float value);
     Mat& fill_rand_rate(float value_p, float value_not_p, float p);
+    Mat& fill_diag(float value);
     Mat& transpose();
     Mat& operator+=(const Mat& other);
     Mat& operator-=(const Mat& other);

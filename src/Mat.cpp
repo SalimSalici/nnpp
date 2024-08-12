@@ -181,6 +181,16 @@ Mat& Mat::fill_rand_rate(float value_p, float value_not_p, float p) {
     return *this;
 }
 
+Mat& Mat::fill_diag(float value) { 
+    float* cur_data = data;
+    for (int i = 0; i < getCols(); i++) {
+        *cur_data = value;
+        cur_data += down + right;
+    }
+        
+    return *this;
+}
+
 Mat& Mat::transpose() {
     is_transposed = !is_transposed;
     right = is_transposed ? cols : 1;
