@@ -35,6 +35,7 @@ class Mat {
     Mat& raiseEach(int power);
     Mat& raiseEach(float power);
     float elementsSum() const;
+    int idx_max() const;
 
     // returns a new Mat object that is a view of the current Mat object
     Mat view(int rows, int cols);

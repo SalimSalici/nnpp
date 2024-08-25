@@ -62,37 +62,37 @@ int main(int argc, char const *argv[]) {
 
     int minibatch_size = 50;
 
-    // NeuralNetwork nn(28*28);
+    NeuralNetwork nn(28*28);
 
-    // nn.process_inputs_separated(true);
+    nn.process_inputs_separated(true);
 
-    // int c_out_1 = 20;
-    // int c_out_2 = 40;
+    int c_out_1 = 20;
+    int c_out_2 = 40;
 
-    // nn.add_layer(make_shared<Conv2d_mec>(minibatch_size, 28, 28, 1, c_out_1, 5, 5, 1, 1, 0, 0));
-    // nn.add_layer(make_shared<ReLU>());
-    // nn.add_layer(make_shared<Maxpool_hnwc_to_nhwc>(minibatch_size, 24, 24, c_out_1, 2, 2, 2, 2));
+    nn.add_layer(make_shared<Conv2d_mec>(minibatch_size, 28, 28, 1, c_out_1, 5, 5, 1, 1, 0, 0));
+    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Maxpool_hnwc_to_nhwc>(minibatch_size, 24, 24, c_out_1, 2, 2, 2, 2));
 
-    // nn.add_layer(make_shared<Conv2d_mec>(minibatch_size, 12, 12, c_out_1, c_out_2, 5, 5, 1, 1, 0, 0));
-    // nn.add_layer(make_shared<ReLU>());
-    // nn.add_layer(make_shared<Maxpool_hnwc_to_nhwc>(minibatch_size, 8, 8, c_out_2, 2, 2, 2, 2));
+    nn.add_layer(make_shared<Conv2d_mec>(minibatch_size, 12, 12, c_out_1, c_out_2, 5, 5, 1, 1, 0, 0));
+    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Maxpool_hnwc_to_nhwc>(minibatch_size, 8, 8, c_out_2, 2, 2, 2, 2));
 
-    // nn.add_layer(make_shared<Dropout>(0.2));
-    // nn.add_layer(make_shared<Linear>(4*4*c_out_2, 500));
-    // nn.add_layer(make_shared<ReLU>());
-    // nn.add_layer(make_shared<Dropout>(0.5));
-    // nn.add_layer(make_shared<Linear>(500, 500));
-    // nn.add_layer(make_shared<ReLU>());
-    // nn.add_layer(make_shared<Dropout>(0.5));
-    // nn.add_layer(make_shared<Linear>(500, 10));
-    // nn.set_loss_type(LossType::CCE);
+    nn.add_layer(make_shared<Dropout>(0.2));
+    nn.add_layer(make_shared<Linear>(4*4*c_out_2, 500));
+    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Dropout>(0.5));
+    nn.add_layer(make_shared<Linear>(500, 500));
+    nn.add_layer(make_shared<ReLU>());
+    nn.add_layer(make_shared<Dropout>(0.5));
+    nn.add_layer(make_shared<Linear>(500, 10));
+    nn.set_loss_type(LossType::CCE);
 
-    // nn.initialize_layers();
+    nn.initialize_layers();
 
-    // nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
+    nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
 
-    // delete[] training_samples;
-    // delete[] test_samples;
+    delete[] training_samples;
+    delete[] test_samples;
 
     // NeuralNetwork nn(28*28);
 
@@ -107,7 +107,9 @@ int main(int argc, char const *argv[]) {
 
     // nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
 
-    NeuralNetwork nn(28*28);
+    // Testing skip connections
+
+    // NeuralNetwork nn(28*28);
 
     // nn.add_layer(make_shared<Linear>(28*28, 100));
     // nn.add_layer(make_shared<ReLU>());
@@ -134,43 +136,45 @@ int main(int argc, char const *argv[]) {
     // nn.add_layer(make_shared<Linear>(100, 10));
     // nn.set_loss_type(LossType::CCE);
 
-    shared_ptr<ResBlock> res_block_1 = make_shared<ResBlock>();
-    res_block_1->add_layer(make_shared<Linear>(100, 100));
-    res_block_1->add_layer(make_shared<ReLU>());
-    res_block_1->add_layer(make_shared<Linear>(100, 100));
-    res_block_1->add_layer(make_shared<ReLU>());
-    res_block_1->add_layer(make_shared<Linear>(100, 100));
+    // -------------------------------------------------
 
-    shared_ptr<ResBlock> res_block_2 = make_shared<ResBlock>();
-    res_block_2->add_layer(make_shared<Linear>(100, 100));
-    res_block_2->add_layer(make_shared<ReLU>());
-    res_block_2->add_layer(make_shared<Linear>(100, 100));
-    res_block_2->add_layer(make_shared<ReLU>());
-    res_block_2->add_layer(make_shared<Linear>(100, 100));
+    // shared_ptr<ResBlock> res_block_1 = make_shared<ResBlock>();
+    // res_block_1->add_layer(make_shared<Linear>(100, 100));
+    // res_block_1->add_layer(make_shared<ReLU>());
+    // res_block_1->add_layer(make_shared<Linear>(100, 100));
+    // res_block_1->add_layer(make_shared<ReLU>());
+    // res_block_1->add_layer(make_shared<Linear>(100, 100));
 
-    shared_ptr<ResBlock> res_block_3 = make_shared<ResBlock>();
-    res_block_3->add_layer(make_shared<Linear>(100, 100));
-    res_block_3->add_layer(make_shared<ReLU>());
-    res_block_3->add_layer(make_shared<Linear>(100, 100));
-    res_block_3->add_layer(make_shared<ReLU>());
-    res_block_3->add_layer(make_shared<Linear>(100, 100));
-    res_block_3->add_layer(make_shared<ReLU>());
-    res_block_3->add_layer(make_shared<Linear>(100, 100));
+    // shared_ptr<ResBlock> res_block_2 = make_shared<ResBlock>();
+    // res_block_2->add_layer(make_shared<Linear>(100, 100));
+    // res_block_2->add_layer(make_shared<ReLU>());
+    // res_block_2->add_layer(make_shared<Linear>(100, 100));
+    // res_block_2->add_layer(make_shared<ReLU>());
+    // res_block_2->add_layer(make_shared<Linear>(100, 100));
 
-    nn.add_layer(make_shared<Linear>(28*28, 100));
-    nn.add_layer(make_shared<ReLU>());
-    nn.add_layer(res_block_1);
-    nn.add_layer(make_shared<ReLU>());
-    nn.add_layer(res_block_2);
-    nn.add_layer(make_shared<ReLU>());
-    nn.add_layer(res_block_3);
-    nn.add_layer(make_shared<ReLU>());
-    nn.add_layer(make_shared<Linear>(100, 10));
-    nn.set_loss_type(LossType::CCE);
+    // shared_ptr<ResBlock> res_block_3 = make_shared<ResBlock>();
+    // res_block_3->add_layer(make_shared<Linear>(100, 100));
+    // res_block_3->add_layer(make_shared<ReLU>());
+    // res_block_3->add_layer(make_shared<Linear>(100, 100));
+    // res_block_3->add_layer(make_shared<ReLU>());
+    // res_block_3->add_layer(make_shared<Linear>(100, 100));
+    // res_block_3->add_layer(make_shared<ReLU>());
+    // res_block_3->add_layer(make_shared<Linear>(100, 100));
 
-    nn.initialize_layers();
+    // nn.add_layer(make_shared<Linear>(28*28, 100));
+    // nn.add_layer(make_shared<ReLU>());
+    // nn.add_layer(res_block_1);
+    // nn.add_layer(make_shared<ReLU>());
+    // nn.add_layer(res_block_2);
+    // nn.add_layer(make_shared<ReLU>());
+    // nn.add_layer(res_block_3);
+    // nn.add_layer(make_shared<ReLU>());
+    // nn.add_layer(make_shared<Linear>(100, 10));
+    // nn.set_loss_type(LossType::CCE);
 
-    nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
+    // nn.initialize_layers();
+
+    // nn.sgd(training_samples, training_samples_count, lr, epochs, minibatch_size, test_samples, test_samples_count);
 
     return 0;
 }

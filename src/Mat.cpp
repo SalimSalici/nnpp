@@ -206,6 +206,18 @@ float Mat::elementsSum() const {
     return result;
 }
 
+int Mat::idx_max() const {
+    int max_idx = 0;
+    float max_val = std::numeric_limits<float>::lowest();
+    for (int i = 0; i < size; i++) {
+        if (data[i] > max_val) {
+            max_val = data[i];
+            max_idx = i;
+        }
+    }
+    return max_idx;
+}
+
 void Mat::plus(Mat& result, const Mat& a, const Mat& b) {
     if (result.isTransposed() || a.isTransposed() || b.isTransposed()) {
         Mat::element_op_tr_supp(result, a, b, std::plus<float>());

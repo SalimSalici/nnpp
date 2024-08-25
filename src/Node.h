@@ -29,6 +29,7 @@ class PowNode;
 class MatPlusVecNode;
 class MatPlusRowVecNode;
 class RSSNode;
+class CCENode;
 class TransposeNode;
 class Im2rowNode;
 class ReshapeNode;
@@ -39,6 +40,7 @@ class Maxpool_hnwc_to_nhwc_Node;
 
 using namespace std;
 using NodePtr = std::shared_ptr<Node>;
+using CCENodePtr = std::shared_ptr<CCENode>;
 
 class Node : public std::enable_shared_from_this<Node> {
    public:
@@ -64,8 +66,18 @@ class Node : public std::enable_shared_from_this<Node> {
         throw domain_error("Cannot backpropagate on a non-scalar matrix.");
     };
 
-    virtual void backprop(deque<NodePtr> sorted_nodes) {
-        throw domain_error("Cannot backpropagate on a non-scalar matrix.");
+    // virtual void backprop(deque<NodePtr> sorted_nodes) {
+    //     throw domain_error("Cannot backpropagate on a non-scalar matrix.");
+    // };
+
+    void backprop(deque<NodePtr> sorted_nodes) {
+        #if LOG_OPERATIONS
+        std::cout << "SumNode backprop with sorted nodes" << std::endl;
+        #endif
+        if (data.getSize() != 1)
+            throw domain_error("Cannot backpropagate on a non-scalar.");
+        grad.fill(1);
+        for (NodePtr node : sorted_nodes) node->back();
     };
 
     virtual void compute() {
@@ -249,32 +261,33 @@ class SumNode : public UnaryNode {
         data.fill(a->getData().elementsSum());
     }
 
-    void backprop() override {
-        #if LOG_OPERATIONS
-        std::cout << "SumNode backprop" << std::endl;
-        #endif
-        deque<NodePtr> sorted_nodes;
-        topo_sort(sorted_nodes);
+    // void backprop() override {
+    //     #if LOG_OPERATIONS
+    //     std::cout << "SumNode backprop" << std::endl;
+    //     #endif
+    //     deque<NodePtr> sorted_nodes;
+    //     topo_sort(sorted_nodes);
 
-        grad.fill(1);
+    //     grad.fill(1);
 
-        for (NodePtr node : sorted_nodes) node->back();
-    };
+    //     for (NodePtr node : sorted_nodes) node->back();
+    // };
 
-    void backprop(deque<NodePtr> sorted_nodes) override {
-        #if LOG_OPERATIONS
-        std::cout << "SumNode backprop with sorted nodes" << std::endl;
-        #endif
-        grad.fill(1);
-        for (NodePtr node : sorted_nodes) node->back();
-    };
+    // TODO: Maybe move this to the base class and check that data/grad shape is (1, 1)
+    // void backprop(deque<NodePtr> sorted_nodes) override {
+    //     #if LOG_OPERATIONS
+    //     std::cout << "SumNode backprop with sorted nodes" << std::endl;
+    //     #endif
+    //     grad.fill(1);
+    //     for (NodePtr node : sorted_nodes) node->back();
+    // };
 
     void back() override {
         #if LOG_OPERATIONS
         std::cout << "SumNode back" << std::endl;
         #endif
         if (a->get_requires_grad())
-            a->getGrad().fill(1);
+            a->getGrad().fill(data.getData()[0]);
     }
 };
 

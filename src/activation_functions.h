@@ -1,3 +1,6 @@
+#ifndef ACTIVATION_FUNCTIONS_H
+#define ACTIVATION_FUNCTIONS_H
+
 #include <cmath>
 
 namespace activation_functions {
@@ -39,4 +42,10 @@ inline float leaky_relu_derivative(float x, float alpha = 0.01) {
     return (x > 0) ? 1.0 : alpha;
 }
 
+inline float square(float x) { return x * x; }
+
+inline float square_derivative(float x) { return 2 * x; }
+
 }  // namespace activations
+
+#endif  // ACTIVATION_FUNCTIONS_H

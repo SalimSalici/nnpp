@@ -29,4 +29,25 @@ void shuffle_pointers(void* array[], size_t count) {
     }
 }
 
+float standard_sample() {
+    float x;
+    do {
+        x = (float)rand() / RAND_MAX;
+    } while (x == 0.0);
+    float y = (float)rand() / RAND_MAX;
+    float z = sqrt(-2 * log(x)) * cos(2 * M_PI * y);
+    return z;
+}
+
+float normal_sample(float mean, float std) {
+    return mean + std * standard_sample();
+}
+
+float normal_sample_applier(float val, void* args) {
+    float* params = static_cast<float*>(args);
+    float mean = params[0];
+    float std = params[1];
+    return mean + std * standard_sample();
+}
+
 #endif

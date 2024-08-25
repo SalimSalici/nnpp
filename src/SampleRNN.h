@@ -100,6 +100,14 @@ public:
         return output_seq_one_hots;
     }
 
+    static char itoc(int i) {
+        return _itoc[i];
+    }
+
+    static int ctoi(char c) {
+        return _ctoi[c];
+    }
+
 protected:
 
     string seq_str;
