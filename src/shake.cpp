@@ -10,6 +10,7 @@
 #include "Mat.h"
 #include "SampleRNN.h"
 #include "BasicRNN.h"
+#include "LstmRNN.h"
 
 extern "C" {
 #include <cblas.h>
@@ -54,7 +55,7 @@ int main(int argc, char const *argv[]) {
     goto_set_num_threads(2);
     openblas_set_num_threads(2);
     
-    int max_seq_len = 9;
+    int max_seq_len = 25;
     int token_space_size = 256;
 
     set<char> unique_chars;
@@ -100,7 +101,8 @@ int main(int argc, char const *argv[]) {
         samples[i] = new SampleRNN(sequences[i], max_seq_len);
     }
 
-    BasicRNN rnn(characters.size(), 100, characters.size());
+    // BasicRNN rnn(characters.size(), 100, characters.size());
+    LstmRNN rnn(characters.size(), 50, characters.size());
     rnn.initialize_params();
 
     vector<string> generated = rnn.generate('_', max_seq_len, 10);
@@ -108,6 +110,7 @@ int main(int argc, char const *argv[]) {
     for (const string& s : generated) {
         cout << s << endl;
     }
+
 
     cout << "sequences.size() = " << sequences.size() << endl;
 
